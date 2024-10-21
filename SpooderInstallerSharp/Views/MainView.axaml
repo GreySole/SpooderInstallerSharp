@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+             xmlns:vm="clr-namespace:SpooderInstallerSharp.ViewModels"
+             xmlns:behaviors="clr-namespace:SpooderInstallerSharp.Behaviors"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="450"
+             x:Class="SpooderInstallerSharp.Views.MainView"
+             x:DataType="vm:MainViewModel">
+	<Design.DataContext>
+		<!-- This only sets the DataContext for the previewer in an IDE,
+         to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+		<vm:MainViewModel />
+	</Design.DataContext>
+	<Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*">
+		<StackPanel x:Name="SpooderStackPanel" Orientation="Horizontal" HorizontalAlignment="Center" Grid.Row="0">
+			<TextBlock Text="/╲" x:Name="longlegleft" FontSize="36"/>
+			<TextBlock Text="/\" x:Name="shortlegleft" FontSize="36"/>
+			<TextBlock Text="(" x:Name="bodyleft" FontSize="36"/>
+			<TextBlock Text="º" x:Name="littleeyeleft" FontSize="36"/>
+			<ContentControl Name="bigeyeleftcontrol">
+				<TextBlock Text="o" x:Name="bigeyeleft" FontSize="36"/>
+			</ContentControl>
+			<TextBlock Text=" " x:Name="fangleft" FontSize="36"/>
+			<TextBlock Text="ω" x:Name="mouth" FontSize="36"/>
+			<TextBlock Text=" " x:Name="fangright" FontSize="36"/>
+			<ContentControl Name="bigeyerightcontrol">
+				<TextBlock Text="o" x:Name="bigeyeright" FontSize="36"/>
+			</ContentControl>
+			<TextBlock Text="º" x:Name="littleeyeright" FontSize="36"/>
+			<TextBlock Text=")" x:Name="bodyright" FontSize="36"/>
+			<TextBlock Text="/\" x:Name="shortlegright" FontSize="36"/>
+			<TextBlock Text="╱\" x:Name="longlegright" FontSize="36"/>
+		</StackPanel>
+		<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Grid.Row="1">
+			<Button Content="Install Spooder" Command="{Binding InstallSpooder}" IsVisible="{Binding IsSpooderNotInstalled}" />
+			<Button Content="Start Spooder" Command="{Binding StartSpooder}" IsVisible="{Binding IsSpooderRunnable}"/>
+			<Button Content="Stop Spooder" Command="{Binding StopSpooder}" IsVisible="{Binding IsSpooderRunning}"/>
+		</StackPanel>
+		<Border Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="15" Padding="15" BorderBrush="White" BorderThickness="2">
+			<ScrollViewer HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalScrollBarVisibility="Auto">
+				<i:Interaction.Behaviors>
+					<behaviors:AutoScrollBehavior />
+				</i:Interaction.Behaviors>
+				<StackPanel x:Name="ConsoleOutputPanel" Orientation="Vertical">
+				</StackPanel>
+			</ScrollViewer>
+		</Border>
+	</Grid>
+</UserControl>
