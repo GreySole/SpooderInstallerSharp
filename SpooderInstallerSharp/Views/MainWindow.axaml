@@ -3,10 +3,54 @@
         xmlns:vm="using:SpooderInstallerSharp.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:icon="https://github.com/projektanker/icons.avalonia"
         xmlns:views="clr-namespace:SpooderInstallerSharp.Views"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="SpooderInstallerSharp.Views.MainWindow"
         Icon="/Assets/avalonia-logo.ico"
-        Title="SpooderInstallerSharp">
-        <views:MainView />
+        Title="SpooderInstallerSharp"
+		x:DataType="vm:MainViewModel">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="*"/>
+		</Grid.ColumnDefinitions>
+
+		<Border Padding="10">
+		<UniformGrid Columns="3" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+			<StackPanel Orientation="Horizontal">
+				<TextBlock Text="Spooder Name" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+			</StackPanel>
+				<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" x:Name="SpooderPet">
+					<TextBlock Text="/╲" x:Name="longlegleft" FontSize="36"/>
+					<TextBlock Text="/\" x:Name="shortlegleft" FontSize="36"/>
+					<TextBlock Text="(" x:Name="bodyleft" FontSize="36"/>
+					<TextBlock Text="º" x:Name="littleeyeleft" FontSize="36"/>
+					<ContentControl Name="bigeyeleftcontrol">
+						<TextBlock Text="o" x:Name="bigeyeleft" FontSize="36"/>
+					</ContentControl>
+					<TextBlock Text=" " x:Name="fangleft" FontSize="36"/>
+					<TextBlock Text="ω" x:Name="mouth" FontSize="36"/>
+					<TextBlock Text=" " x:Name="fangright" FontSize="36"/>
+					<ContentControl Name="bigeyerightcontrol">
+						<TextBlock Text="o" x:Name="bigeyeright" FontSize="36"/>
+					</ContentControl>
+					<TextBlock Text="º" x:Name="littleeyeright" FontSize="36"/>
+					<TextBlock Text=")" x:Name="bodyright" FontSize="36"/>
+					<TextBlock Text="/\" x:Name="shortlegright" FontSize="36"/>
+					<TextBlock Text="╱\" x:Name="longlegright" FontSize="36"/>
+				</StackPanel>
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+				<views:ProcessControls DataContext="{Binding}" />
+				<Button icon:Attached.Icon="fa-spin fa-gear" FontSize="24" Click="OnSettingsClick"/>
+			</StackPanel>
+		</UniformGrid>
+		</Border>
+		<ContentControl x:Name="ContentFrame" Grid.Row="1" Margin="0,20,0,0">
+			
+		</ContentControl>
+	</Grid>
 </Window>

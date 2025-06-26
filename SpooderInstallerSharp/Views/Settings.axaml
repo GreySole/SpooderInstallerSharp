@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 xmlns:vm="clr-namespace:SpooderInstallerSharp.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SpooderInstallerSharp.Views.Settings"
+			 x:DataType="vm:MainViewModel">
+	<Border Padding="10">
+		
+		<StackPanel Orientation="Vertical" Spacing="10" Margin="0,10,0,0">
+			<StackPanel Orientation="Vertical">
+				<TextBlock Text="Installation Directory" FontSize="18"/>
+				<StackPanel Orientation="Horizontal" Spacing="5">
+					<TextBox x:Name="InstallationDirTextBox" Width="300" IsReadOnly="True" />
+					<Button x:Name="BrowseFolderButton" Content="Browse..." Click="BrowseFolderButton_Click" />
+				</StackPanel>
+			</StackPanel>
+			<StackPanel Orientation="Vertical">
+				<TextBlock Text="Branch" FontSize="18"/>
+				<ComboBox x:Name="BranchSelect" Width="200" />
+			</StackPanel>
+			<StackPanel Orientation="Vertical">
+				<TextBlock Text="Danger Zone"/>
+				<Button Content="Clean Spooder" Command="{Binding CleanSpooder}" Margin="0,10,0,0"/>
+				<Button Content="Uninstall Spooder" Command="{Binding UninstallSpooder}" Margin="0,10,0,0"/>
+			</StackPanel>
+		</StackPanel>
+	</Border>
+</UserControl>

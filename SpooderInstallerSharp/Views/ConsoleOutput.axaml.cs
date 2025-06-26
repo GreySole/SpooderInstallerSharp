@@ -8,17 +8,17 @@ using Color = Avalonia.Media.Color;
 
 namespace SpooderInstallerSharp.Views;
 
-public partial class MainView : UserControl
+public partial class ConsoleOutput : UserControl
 {
 
-    public MainView()
+    public ConsoleOutput()
     {
         InitializeComponent();
         var ConsoleOutputPanel = this.FindControl<StackPanel>("ConsoleOutputPanel");
 
         this.DataContextChanged += (s, e) =>
         {
-            Debug.WriteLine($"Context Changed {DataContext.ToString()}");
+            
             var mainViewModel = DataContext as MainViewModel;
             if (mainViewModel == null)
             {
@@ -115,6 +115,13 @@ public partial class MainView : UserControl
         };
 
 
+    }
+
+    private void OnGoToSettingsClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var settingsView = new Settings();
+        var contentFrame = this.FindControl<ContentControl>("ContentFrame");
+        contentFrame.Content = settingsView;
     }
 
     public void UpdateCustomSpooder(bool IsInstalling)

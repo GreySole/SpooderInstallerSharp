@@ -12,8 +12,11 @@ namespace SpooderInstallerSharp.Behaviors
         protected override void OnAttached()
         {
             base.OnAttached();
-            AttachToStackPanel();
-            AssociatedObject.PropertyChanged += OnScrollViewerContentChanged;
+            if (AssociatedObject != null)
+            {
+                AssociatedObject.Loaded += OnScrollViewerLoaded;
+                AssociatedObject.PropertyChanged += OnScrollViewerContentChanged;
+            }
         }
 
         protected override void OnDetaching()
@@ -21,9 +24,15 @@ namespace SpooderInstallerSharp.Behaviors
             DetachFromStackPanel();
             if (AssociatedObject != null)
             {
+                AssociatedObject.Loaded -= OnScrollViewerLoaded;
                 AssociatedObject.PropertyChanged -= OnScrollViewerContentChanged;
             }
             base.OnDetaching();
+        }
+
+        private void OnScrollViewerLoaded(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            AttachToStackPanel();
         }
 
         private void AttachToStackPanel()
@@ -55,9 +64,13 @@ namespace SpooderInstallerSharp.Behaviors
 
         private void OnStackPanelChildrenChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            if (AssociatedObject != null)
+            if (AssociatedObject != null && e.Action == NotifyCollectionChangedAction.Add)
             {
-                AssociatedObject.ScrollToEnd();
+                // Use Dispatcher to ensure UI updates are complete before scrolling
+                Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    AssociatedObject.ScrollToEnd();
+                }, Avalonia.Threading.DispatcherPriority.Background);
             }
         }
     }
