@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using SpooderInstallerSharp.ViewModels;
@@ -8,6 +9,8 @@ namespace SpooderInstallerSharp;
 
 public partial class App : Application
 {
+    private MainViewModel? _mainViewModel;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -15,26 +18,36 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        _mainViewModel = new MainViewModel();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var mainViewModel = new MainViewModel();
-
-            desktop.MainWindow = new MainWindow
+            var mainView = new MainWindow
             {
-                DataContext = mainViewModel
+                DataContext = _mainViewModel
+            };
+
+            desktop.MainWindow = new Window
+            {
+                Content = mainView,
+                Title = "SpooderInstallerSharp",
+                DataContext = _mainViewModel
             };
 
             desktop.MainWindow.Closing += (sender, e) =>
             {
-
-                mainViewModel.OnCloseAsync();
+                _mainViewModel.OnCloseAsync();
             };
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
-            singleViewPlatform.MainView = new ConsoleOutput
+            singleViewPlatform.MainView = new MainWindow
             {
-                DataContext = new MainViewModel()
+                DataContext = _mainViewModel
+            };
+            singleViewPlatform.MainView.Unloaded += (sender, e) =>
+            {
+                _mainViewModel.OnCloseAsync();
             };
         }
 

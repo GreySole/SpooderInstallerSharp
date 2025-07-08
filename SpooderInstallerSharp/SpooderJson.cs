@@ -10,7 +10,7 @@ namespace SpooderInstallerSharp.JsonTypes
     {
         public string name { get; set; }
         public string version { get; set; }
-        public string customSpooder { get; set; }
+        public CustomSpooder customSpooder { get; set; }
         public SpooderTheme themeVariables { get; set; }
     }
 
@@ -26,6 +26,12 @@ namespace SpooderInstallerSharp.JsonTypes
         public float hue { get; set; }
         public float saturation { get; set; }
         public Boolean isDarkTheme { get; set; }
+    }
+
+    public class CustomSpooder
+    {
+        public CustomSpooderParts parts { get; set; }
+        public CustomSpooderParts colors { get; set; }
     }
 
     public class CustomSpooderParts

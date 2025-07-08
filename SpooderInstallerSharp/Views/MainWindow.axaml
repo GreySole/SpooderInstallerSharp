@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SpooderInstallerSharp.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,8 +7,6 @@
         xmlns:views="clr-namespace:SpooderInstallerSharp.Views"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="SpooderInstallerSharp.Views.MainWindow"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="SpooderInstallerSharp"
 		x:DataType="vm:MainViewModel">
 	<Grid>
 		<Grid.RowDefinitions>
@@ -19,10 +17,10 @@
 			<ColumnDefinition Width="*"/>
 		</Grid.ColumnDefinitions>
 
-		<Border Padding="10">
+		<Border x:Name="MainBorder" Padding="10" >
 		<UniformGrid Columns="3" HorizontalAlignment="Stretch" VerticalAlignment="Center">
 			<StackPanel Orientation="Horizontal">
-				<TextBlock Text="Spooder Name" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+				<TextBlock Text="Spooder Name" x:Name="SpooderName" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 			</StackPanel>
 				<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" x:Name="SpooderPet">
 					<TextBlock Text="/╲" x:Name="longlegleft" FontSize="36"/>
@@ -49,8 +47,8 @@
 			</StackPanel>
 		</UniformGrid>
 		</Border>
-		<ContentControl x:Name="ContentFrame" Grid.Row="1" Margin="0,20,0,0">
-			
-		</ContentControl>
+		<Border x:Name="ContentBorder" BorderThickness="5" Padding="10" Grid.Row="1">
+			<ContentControl x:Name="ContentFrame"/>
+		</Border>
 	</Grid>
-</Window>
+</UserControl>

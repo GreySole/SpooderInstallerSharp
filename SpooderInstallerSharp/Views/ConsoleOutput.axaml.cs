@@ -25,21 +25,6 @@ public partial class ConsoleOutput : UserControl
                 Debug.WriteLine($"MainViewModel null!");
                 return;
             }
-            mainViewModel._spooder.SpooderInstallStart += (s, e) =>
-            {
-                Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    UpdateCustomSpooder(true);
-                });
-            };
-
-            mainViewModel._spooder.SpooderInstallComplete += (s, e) =>
-            {
-                Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    UpdateCustomSpooder(false);
-                });
-            };
 
             // Example of adding text dynamically
             mainViewModel.ConsoleOutput.CollectionChanged += (s, e) =>
@@ -111,7 +96,6 @@ public partial class ConsoleOutput : UserControl
                 }
             }
 
-            UpdateCustomSpooder(false);
         };
 
 
@@ -122,67 +106,5 @@ public partial class ConsoleOutput : UserControl
         var settingsView = new Settings();
         var contentFrame = this.FindControl<ContentControl>("ContentFrame");
         contentFrame.Content = settingsView;
-    }
-
-    public void UpdateCustomSpooder(bool IsInstalling)
-    {
-        var SpooderStackPanel = this.FindControl<StackPanel>("SpooderStackPanel");
-        Debug.WriteLine($"UPDATING CUSTOM SPOODER {IsInstalling}");
-        return;
-        foreach (var child in SpooderStackPanel.Children)
-        {
-            if (child is TextBlock textBlock)
-            {
-                if (CustomSpooder.Parts.ContainsKey(textBlock.Name))
-                {
-                    textBlock.Text = CustomSpooder.Parts[textBlock.Name];
-                    textBlock.Foreground = new SolidColorBrush(Color.Parse(CustomSpooder.Colors[textBlock.Name]));
-                }
-            }
-            else if (child is ContentControl contentControl)
-            {
-                //TODO: Implement rotating SVG for eyes when installing
-                /*if (!IsInstalling)
-                {
-                    //<Svg Path="avares://SpooderInstallerSharp/Assets/DashedCircle.svg" Width="36" Height="36"/>
-                    Debug.WriteLine("GENERATE SVG");
-                    
-                    var svgPath = new Uri("avares://SpooderInstallerSharp/Assets/DashedCircle.svg");
-                    using (var stream = AssetLoader.Open(svgPath))
-                    {
-                        svg.Load(stream);
-                    }
-                    using (var surface = SKSurface.Create(new SKImageInfo(64, 64)))
-                    {
-                        Debug.WriteLine("APPLY SVG");
-                        // Get the SKCanvas from the SKSurface
-                        SKCanvas canvas = surface.Canvas;
-
-                        // Draw the SVG onto the canvas
-                        canvas.DrawPicture(svg.Picture);
-
-                        contentControl.DataContext = canvas;
-                    }
-
-                }
-                else
-                {
-                    var textBlockName = "";
-                    Debug.WriteLine("CONTENT CONTROL " + contentControl.Name);
-                    if (contentControl.Name == "bigeyeleftcontrol")
-                    {
-                        textBlockName = "bigeyeleft";
-                    }
-                    else
-                    {
-                        textBlockName = "bigeyeright";
-                    }
-                    var swapTextBlock = new TextBlock { Text = CustomSpooder.Parts[textBlockName] };
-                    swapTextBlock.Name = textBlockName;
-                    swapTextBlock.Foreground = new SolidColorBrush(Color.Parse(CustomSpooder.Colors[swapTextBlock.Name]));
-                    contentControl.DataContext = swapTextBlock;
-                }*/
-            }
-        }
     }
 }

@@ -5,13 +5,16 @@
              xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
 			 xmlns:icon="https://github.com/projektanker/icons.avalonia"
              xmlns:vm="clr-namespace:SpooderInstallerSharp.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="100"
+             mc:Ignorable="d" d:DesignWidth="350" d:DesignHeight="100"
              x:Class="SpooderInstallerSharp.Views.ProcessControls"
              x:DataType="vm:MainViewModel">
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Grid.Row="1">
 			<Button icon:Attached.Icon="fa-solid fa-download" FontSize="24" Command="{Binding InstallSpooder}" IsVisible="{Binding IsSpooderNotInstalled}" />
-			<Button icon:Attached.Icon="fa-solid fa-play" FontSize="24" Command="{Binding StartSpooder}" IsVisible="{Binding IsSpooderRunnable}"/>
+			<Button icon:Attached.Icon="fa-solid fa-sync" FontSize="24" Command="{Binding RestartSpooder}" IsVisible="{Binding IsSpooderRunning}"/>
+			<Button icon:Attached.Icon="fa-solid fa-arrow-up-right-from-square" FontSize="24" Command="{Binding OpenSpooder}" IsVisible="{Binding IsSpooderRunning}"/>
+			<Button icon:Attached.Icon="fa-solid fa-folder" FontSize="24" Command="{Binding BrowseSpooder}"/>
 			<Button icon:Attached.Icon="fa-solid fa-stop" FontSize="24" Command="{Binding StopSpooder}" IsVisible="{Binding IsSpooderRunning}"/>
+			<Button icon:Attached.Icon="fa-solid fa-play" FontSize="24" Command="{Binding StartSpooder}" IsVisible="{Binding IsSpooderRunnable}"/>
 		</StackPanel>
 </UserControl>

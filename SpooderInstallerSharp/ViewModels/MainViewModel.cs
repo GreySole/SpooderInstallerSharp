@@ -36,9 +36,12 @@ public class MainViewModel : ReactiveObject
     public ICommand InstallSpooder { get; }
     public ICommand UninstallSpooder { get; }
     public ICommand StartSpooder { get; }
+    public ICommand RestartSpooder { get; }
     public ICommand StopSpooder { get; }
     public ICommand CleanSpooder { get; }
     public ICommand UpdateSpooder { get; }
+    public ICommand OpenSpooder { get; }
+    public ICommand BrowseSpooder { get; }
 
     private bool _IsSpooderInstalled;
 
@@ -94,10 +97,19 @@ public class MainViewModel : ReactiveObject
             Dispatcher.UIThread.Post(() => IsSpooderRunning = false);
         };
 
+        _spooder.MessageReceived += (sender, message) =>
+        {
+            // Handle the IPC message from the tsx app
+            Debug.WriteLine($"Received IPC message: {message}");
+        };
+
         InstallSpooder = ReactiveCommand.CreateFromTask(InstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderNotInstalled));
         UninstallSpooder = ReactiveCommand.CreateFromTask(UninstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderInstalled));
         StartSpooder = ReactiveCommand.CreateFromTask(StartSpooderTask, this.WhenAnyValue(x => x.IsSpooderNotRunning));
+        RestartSpooder = ReactiveCommand.CreateFromTask(RestartSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
         StopSpooder = ReactiveCommand.CreateFromTask(StopSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
+        OpenSpooder = ReactiveCommand.CreateFromTask(OpenSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
+        BrowseSpooder = ReactiveCommand.CreateFromTask(BrowseSpooderTask);
     }
 
     public void OnCloseAsync()
@@ -133,9 +145,156 @@ public class MainViewModel : ReactiveObject
         await Task.Run(() => _spooder.StartSpooder());
     }
 
+    private async Task RestartSpooderTask()
+    {
+        OnReturnToConsole();
+        await Task.Run(() => _spooder.StopSpooder());
+        await Task.Run(() => _spooder.StartSpooder());
+    }
+
     private async Task StopSpooderTask()
     {
         OnReturnToConsole();
         await Task.Run(() => _spooder.StopSpooder());
+    }
+
+    private async Task OpenSpooderTask()
+    {
+        try
+        {
+            string url = "http://localhost:3000";
+
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            };
+
+            Process.Start(processStartInfo);
+            AppendToConsoleOutput($"Opening Spooder in default browser: {url}");
+        }
+        catch (Exception ex)
+        {
+            AppendToConsoleOutput($"Error opening browser: {ex.Message}");
+        }
+    }
+
+    private async Task BrowseSpooderTask()
+    {
+        try
+        {
+            string installPath = appSettings.SpooderInstallationPath;
+
+            if (!Directory.Exists(installPath))
+            {
+                AppendToConsoleOutput($"Spooder installation folder not found: {installPath}");
+                return;
+            }
+
+            ProcessStartInfo processStartInfo = GetPlatformSpecificFileManagerProcess(installPath);
+
+            if (processStartInfo != null)
+            {
+                Process.Start(processStartInfo);
+                AppendToConsoleOutput($"Opening Spooder installation folder: {installPath}");
+            }
+            else
+            {
+                AppendToConsoleOutput("File manager not supported on this platform");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendToConsoleOutput($"Error opening folder: {ex.Message}");
+        }
+    }
+
+    private ProcessStartInfo GetPlatformSpecificFileManagerProcess(string path)
+    {
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+        {
+            return new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{path}\"",
+                UseShellExecute = true
+            };
+        }
+        else if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+        {
+            // Try common Linux file managers in order of preference
+            string[] fileManagers = { "xdg-open", "nautilus", "dolphin", "thunar", "pcmanfm", "nemo" };
+
+            foreach (string fileManager in fileManagers)
+            {
+                if (IsCommandAvailable(fileManager))
+                {
+                    return new ProcessStartInfo
+                    {
+                        FileName = fileManager,
+                        Arguments = $"\"{path}\"",
+                        UseShellExecute = true
+                    };
+                }
+            }
+        }
+        else if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+        {
+            return new ProcessStartInfo
+            {
+                FileName = "open",
+                Arguments = $"\"{path}\"",
+                UseShellExecute = true
+            };
+        }
+        else
+        {
+            // Android or other platforms - try generic approach
+            try
+            {
+                // For Android, we might need to use Intents through platform-specific code
+                // For now, try xdg-open as a fallback
+                if (IsCommandAvailable("xdg-open"))
+                {
+                    return new ProcessStartInfo
+                    {
+                        FileName = "xdg-open",
+                        Arguments = $"\"{path}\"",
+                        UseShellExecute = true
+                    };
+                }
+            }
+            catch
+            {
+                // Fallback failed
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsCommandAvailable(string command)
+    {
+        try
+        {
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = "which",
+                Arguments = command,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+
+            using (var process = Process.Start(processStartInfo))
+            {
+                process.WaitForExit();
+                return process.ExitCode == 0;
+            }
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

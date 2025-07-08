@@ -68,7 +68,7 @@ public partial class Settings : UserControl
     private void SaveInstallationDirectory(string directory)
     {
         var appSettings = SettingsManager.LoadSettings();
-        appSettings.DefaultSpooderPath = directory;
+        appSettings.SpooderInstallationPath = directory;
         SettingsManager.SaveSettings(appSettings);
     }
 
@@ -121,6 +121,8 @@ public partial class Settings : UserControl
                 var appSettings = SettingsManager.LoadSettings();
                 appSettings.SelectedBranch = branch;
                 SettingsManager.SaveSettings(appSettings);
+                OnReturnToConsole();
+                mainViewModel._spooder.UpdateSpooder(branch);
             }
         }
         else

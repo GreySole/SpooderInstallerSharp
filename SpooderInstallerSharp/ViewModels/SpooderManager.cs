@@ -1,13 +1,16 @@
-﻿using LibGit2Sharp;
+﻿using Avalonia.Threading;
+using LibGit2Sharp;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using SpooderInstallerSharp.JsonTypes;
+using SpooderInstallerSharp.Models;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Management;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using SpooderInstallerSharp.JsonTypes;
-using Newtonsoft.Json.Linq;
-using SpooderInstallerSharp.Models;
 
 namespace SpooderInstallerSharp.ViewModels
 {
@@ -20,6 +23,22 @@ namespace SpooderInstallerSharp.ViewModels
         public event EventHandler SpooderRunStart;
         public event EventHandler SpooderRunStop;
         public event EventHandler DefaultDirectorySetNeeded;
+        public event EventHandler SpooderThemeChanged;
+
+        private IPC _ipc;
+
+        // Add event for receiving IPC messages
+        public event EventHandler<string> MessageReceived;
+
+        protected virtual void OnMessageReceived(string message)
+        {
+            MessageReceived?.Invoke(this, message);
+        }
+
+        public void SendMessageToSpooder(string message)
+        {
+            _ipc?.SendMessageToSpooder(message);
+        }
 
         // Method to raise the event  
         protected virtual void OnSpooderInstallStart()
@@ -52,12 +71,17 @@ namespace SpooderInstallerSharp.ViewModels
             DefaultDirectorySetNeeded?.Invoke(this, EventArgs.Empty);
         }
 
+        protected virtual void OnSpooderThemeChanged()
+        {
+            SpooderThemeChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         private readonly Action<string> AppendToConsoleOutput;
         public Process spooderProcess;
         public string nodePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nodejs", "node.exe");
         public string npmPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nodejs", "npm.cmd");
         public string mingwPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "mingw");
-        public string defaultLocalPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
+        //public string defaultLocalPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
         public SpooderInfo spooderInfo { get; set; }
 
         private int spooderProcessId = -1;
@@ -67,12 +91,16 @@ namespace SpooderInstallerSharp.ViewModels
             Debug.WriteLine($"SpooderManager created");
             AppendToConsoleOutput = appendToConsoleOutput;
 
+            _ipc = new IPC(appendToConsoleOutput);
+            _ipc.MessageReceived += (sender, message) => OnMessageReceived(message);
+
             refreshSpooderInfo();
         }
 
         public void refreshSpooderInfo()
         {
-            var packageJsonPath = Path.Combine(defaultLocalPath, "package.json");
+            var appSettings = SettingsManager.LoadSettings();
+            var packageJsonPath = Path.Combine(appSettings.SpooderInstallationPath, "package.json");
 
             var spooderInstalled = File.Exists(packageJsonPath);
 
@@ -91,29 +119,74 @@ namespace SpooderInstallerSharp.ViewModels
                     }
                     else
                     {
-                        var spooderConfigPath = Path.Combine(defaultLocalPath, "user", "settings", "config.json");
-                        var spooderThemePath = Path.Combine(defaultLocalPath, "user", "settings", "themes.json");
+                        var spooderConfigPath = Path.Combine(appSettings.SpooderInstallationPath, "user", "settings", "config.json");
+                        var spooderThemePath = Path.Combine(appSettings.SpooderInstallationPath, "user", "settings", "themes.json");
+                        if(!File.Exists(spooderConfigPath) || !File.Exists(spooderThemePath))
+                        {
+                            AppendToConsoleOutput($"Spooder configuration files not found. Please ensure Spooder is properly installed.");
+                            return;
+                        }
                         var spooderConfig = JObject.Parse(File.ReadAllText(spooderConfigPath));
                         var spooderTheme = JObject.Parse(File.ReadAllText(spooderThemePath));
 
-                        var botNameToken = spooderConfig["bot_name"];
-                        //spooderInfo.name = botNameToken != null ? botNameToken.ToString() : "Unnamed";
+                        var botNameToken = spooderConfig["bot"]["bot_name"];
+                        spooderInfo.name = botNameToken != null ? botNameToken.ToString() : "Unnamed";
+
+                        spooderInfo.themeVariables = new SpooderTheme();
 
                         var hueToken = spooderTheme["webui"]?["hue"];
                         var satToken = spooderTheme["webui"]?["saturation"];
                         var isDarkToken = spooderTheme["webui"]?["isDarkTheme"];
-                        //spooderInfo.themeVariables.hue = (float)(hueToken != null ? hueToken.Value<float>() : 0.0);
-                        //spooderInfo.themeVariables.saturation = (float)(satToken != null ? satToken.Value<float>() : 0.0);
+                        spooderInfo.themeVariables.hue = (float)(hueToken != null ? hueToken.Value<float>() : 0.0);
+                        spooderInfo.themeVariables.saturation = (float)(satToken != null ? satToken.Value<float>() : 0.0);
+
+                        spooderInfo.customSpooder = new CustomSpooder();
+                        var spooderParts = new CustomSpooderParts();
+                        spooderParts.longlegleft = spooderTheme["spooderpet"]?["parts"]?["longlegleft"]?.ToString() ?? "/╲";
+                        spooderParts.shortlegleft = spooderTheme["spooderpet"]?["parts"]?["shortlegleft"]?.ToString() ?? "/\\";
+                        spooderParts.bodyleft = spooderTheme["spooderpet"]?["parts"]?["bodyleft"]?.ToString() ?? "(";
+                        spooderParts.littleeyeleft = spooderTheme["spooderpet"]?["parts"]?["littleeyeleft"]?.ToString() ?? "º";
+                        spooderParts.bigeyeleft = spooderTheme["spooderpet"]?["parts"]?["bigeyeleft"]?.ToString() ?? "o";
+                        spooderParts.fangleft = spooderTheme["spooderpet"]?["parts"]?["fangleft"]?.ToString() ?? " ";
+                        spooderParts.mouth = spooderTheme["spooderpet"]?["parts"]?["mouth"]?.ToString() ?? "ω";
+                        spooderParts.fangright = spooderTheme["spooderpet"]?["parts"]?["fangright"]?.ToString() ?? " ";
+                        spooderParts.bigeyeright = spooderTheme["spooderpet"]?["parts"]?["bigeyeright"]?.ToString() ?? "o";
+                        spooderParts.littleeyeright = spooderTheme["spooderpet"]?["parts"]?["littleeyeright"]?.ToString() ?? "º";
+                        spooderParts.bodyright = spooderTheme["spooderpet"]?["parts"]?["bodyright"]?.ToString() ?? ")";
+                        spooderParts.shortlegright = spooderTheme["spooderpet"]?["parts"]?["shortlegright"]?.ToString() ?? "/\\";
+                        spooderParts.longlegright = spooderTheme["spooderpet"]?["parts"]?["longlegright"]?.ToString() ?? "╱\\";
+
+                        var spooderColors = new CustomSpooderParts();
+                        spooderColors.longlegleft = spooderTheme["spooderpet"]?["colors"]?["longlegleft"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.shortlegleft = spooderTheme["spooderpet"]?["colors"]?["shortlegleft"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.bodyleft = spooderTheme["spooderpet"]?["colors"]?["bodyleft"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.littleeyeleft = spooderTheme["spooderpet"]?["colors"]?["littleeyeleft"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.bigeyeleft = spooderTheme["spooderpet"]?["colors"]?["bigeyeleft"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.fangleft = spooderTheme["spooderpet"]?["colors"]?["fangleft"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.mouth = spooderTheme["spooderpet"]?["colors"]?["mouth"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.fangright = spooderTheme["spooderpet"]?["colors"]?["fangright"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.bigeyeright = spooderTheme["spooderpet"]?["colors"]?["bigeyeright"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.littleeyeright = spooderTheme["spooderpet"]?["colors"]?["littleeyeright"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.bodyright = spooderTheme["spooderpet"]?["colors"]?["bodyright"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.shortlegright = spooderTheme["spooderpet"]?["colors"]?["shortlegright"]?.ToString() ?? "#FFFFFF";
+                        spooderColors.longlegright = spooderTheme["spooderpet"]?["colors"]?["longlegright"]?.ToString() ?? "#FFFFFF";
+
+
+                        spooderInfo.customSpooder.parts = spooderParts;
+                        spooderInfo.customSpooder.colors = spooderColors;
+
+
+                        OnSpooderThemeChanged();
                     }
 
 
 
-                    AppendToConsoleOutput($"Spooder is installed at {defaultLocalPath}");
+                    AppendToConsoleOutput($"Spooder is installed at {appSettings.SpooderInstallationPath}");
                 }
-                else
-                {
-                    AppendToConsoleOutput($"Spooder is not installed. Please install it first.");
-                }
+            }
+            else
+            {
+                AppendToConsoleOutput($"Spooder is not installed. Click the install button on the top right.");
             }
         }
 
@@ -125,7 +198,7 @@ namespace SpooderInstallerSharp.ViewModels
         public bool StartSpooder()
         {
             var appSettings = SettingsManager.LoadSettings();
-            var scriptPath = appSettings.DefaultSpooderPath;
+            var scriptPath = appSettings.SpooderInstallationPath;
             CheckPaths();
 
             // Read the package.json to find the start script
@@ -196,7 +269,7 @@ namespace SpooderInstallerSharp.ViewModels
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                
+
                 // Add node_modules/.bin to PATH so tsx can find dependencies
                 string nodeModulesBin = Path.Combine(scriptPath, "node_modules", ".bin");
                 if (Directory.Exists(nodeModulesBin))
@@ -250,16 +323,8 @@ namespace SpooderInstallerSharp.ViewModels
             spooderProcess.Exited += (sender, e) =>
             {
                 AppendToConsoleOutput("Spooder has exited.");
-                //spooderRunning = false;
+                _ipc.Cleanup();
                 OnSpooderRunStop();
-            };
-
-            spooderProcess.OutputDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    AppendToConsoleOutput(e.Data);
-                }
             };
 
             spooderProcess.ErrorDataReceived += (sender, e) =>
@@ -272,7 +337,17 @@ namespace SpooderInstallerSharp.ViewModels
 
             // Start the process
             spooderProcess.Start();
-            spooderProcess.BeginOutputReadLine();
+            _ipc.SetupIpcCommunication(spooderProcess);
+            if (useTsx)
+            {
+                var pipeName = _ipc.GetPipeName();
+                if (!string.IsNullOrEmpty(pipeName))
+                {
+                    // Send the pipe name to the process so it can connect
+                    spooderProcess.StandardInput.WriteLine($"SPOODER_IPC_PIPE={pipeName}");
+                    spooderProcess.StandardInput.Flush();
+                }
+            }
             spooderProcess.BeginErrorReadLine();
             spooderProcessId = spooderProcess.Id;
             OnSpooderRunStart();
@@ -292,7 +367,6 @@ namespace SpooderInstallerSharp.ViewModels
             try
             {
                 // Cancel any ongoing output reading
-                spooderProcess.CancelOutputRead();
                 spooderProcess.CancelErrorRead();
                 Debug.WriteLine("Cancelled output reading");
                 
@@ -313,9 +387,11 @@ namespace SpooderInstallerSharp.ViewModels
             }
             finally
             {
+                _ipc?.Cleanup();
                 spooderProcess.Dispose();
                 spooderProcess = null;
                 OnSpooderRunStop();
+                Dispatcher.UIThread.Post(() => refreshSpooderInfo());
             }
             
             return true;
@@ -359,7 +435,7 @@ namespace SpooderInstallerSharp.ViewModels
         public async Task<bool> InstallSpooder()
         {
             var appSettings = SettingsManager.LoadSettings();
-            var scriptPath = appSettings.DefaultSpooderPath;
+            var scriptPath = appSettings.SpooderInstallationPath;
             var selectedBranch = appSettings.SelectedBranch;
             Debug.WriteLine($"Installing Spooder to {scriptPath} on branch {selectedBranch}");
             OnSpooderInstallStart();
@@ -429,6 +505,7 @@ namespace SpooderInstallerSharp.ViewModels
         {
             try
             {
+                var appSettings = SettingsManager.LoadSettings();
                 // First, stop any running Spooder process
                 if (spooderProcess != null && !spooderProcess.HasExited)
                 {
@@ -436,31 +513,28 @@ namespace SpooderInstallerSharp.ViewModels
                     StopSpooder();
                 }
 
-                if (Directory.Exists(defaultLocalPath))
+                if (Directory.Exists(appSettings.SpooderInstallationPath))
                 {
-                    AppendToConsoleOutput($"Removing Spooder installation from {defaultLocalPath}...");
+                    AppendToConsoleOutput($"Removing Spooder installation from {appSettings.SpooderInstallationPath}...");
 
                     // Wait a moment to ensure all file handles are closed
                     await Task.Delay(1000);
 
-                    // Delete all contents recursively
-                    DirectoryInfo directory = new DirectoryInfo(defaultLocalPath);
+                    // Try smart deletion with permission handling
+                    bool success = await SmartDeleteDirectory(appSettings.SpooderInstallationPath);
 
-                    // Set all files to non read-only to avoid permission issues
-                    foreach (var file in directory.GetFiles("*", SearchOption.AllDirectories))
+                    if (success)
                     {
-                        file.Attributes = FileAttributes.Normal;
+                        spooderInfo = null;
+                        OnSpooderUninstalled();
+                        AppendToConsoleOutput("Spooder has been successfully uninstalled.");
+                        return true;
                     }
-
-                    // Delete all contents
-                    Directory.Delete(defaultLocalPath, true);
-
-                    spooderInfo = null;
-
-                    OnSpooderUninstalled();
-
-                    AppendToConsoleOutput("Spooder has been successfully uninstalled.");
-                    return true;
+                    else
+                    {
+                        AppendToConsoleOutput("Failed to completely remove Spooder installation directory.");
+                        return false;
+                    }
                 }
                 else
                 {
@@ -473,6 +547,433 @@ namespace SpooderInstallerSharp.ViewModels
                 AppendToConsoleOutput($"Error uninstalling Spooder: {ex.Message}");
                 return false;
             }
+        }
+
+        public async Task<bool> UpdateSpooder(string targetBranch = null)
+        {
+            var appSettings = SettingsManager.LoadSettings();
+            var spooderPath = appSettings.SpooderInstallationPath;
+
+            if (!Directory.Exists(spooderPath))
+            {
+                AppendToConsoleOutput("Spooder installation not found. Please install first.");
+                return false;
+            }
+
+            // Stop Spooder if it's running
+            if (spooderProcess != null && !spooderProcess.HasExited)
+            {
+                AppendToConsoleOutput("Stopping Spooder before update...");
+                StopSpooder();
+                await Task.Delay(2000); // Wait for clean shutdown
+            }
+
+            try
+            {
+                using (var repo = new Repository(spooderPath))
+                {
+                    AppendToConsoleOutput("Updating Spooder repository...");
+
+                    // Ensure user folder is properly ignored
+                    await EnsureUserFolderIgnored(spooderPath);
+
+                    // Stash any local changes (including untracked files in user folder)
+                    AppendToConsoleOutput("Stashing local changes...");
+                    var signature = new Signature("SpooderInstaller", "installer@spooder.local", DateTimeOffset.Now);
+
+                    Stash stashResult = null;
+                    try
+                    {
+                        stashResult = repo.Stashes.Add(signature, "Auto-stash before update", StashModifiers.IncludeUntracked);
+                        if (stashResult != null)
+                        {
+                            AppendToConsoleOutput("Local changes stashed successfully.");
+                        }
+                    }
+                    catch (LibGit2SharpException ex) when (ex.Message.Contains("no changes"))
+                    {
+                        AppendToConsoleOutput("No local changes to stash.");
+                    }
+
+                    // Fetch latest changes from remote
+                    var remote = repo.Network.Remotes["origin"];
+                    var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
+
+                    AppendToConsoleOutput("Fetching latest changes...");
+                    Commands.Fetch(repo, remote.Name, refSpecs, null, "Fetching updates");
+
+                    // Determine target branch
+                    string branchToUpdate = targetBranch ?? appSettings.SelectedBranch ?? "main";
+
+                    // Check if we need to switch branches
+                    var currentBranch = repo.Head.FriendlyName;
+                    if (currentBranch != branchToUpdate)
+                    {
+                        AppendToConsoleOutput($"Switching from branch '{currentBranch}' to '{branchToUpdate}'");
+
+                        // Try to find the branch locally first
+                        var localBranch = repo.Branches[branchToUpdate];
+                        if (localBranch == null)
+                        {
+                            // Create local branch tracking remote
+                            var remoteBranchToTrack = repo.Branches[$"origin/{branchToUpdate}"];
+                            if (remoteBranchToTrack == null)
+                            {
+                                AppendToConsoleOutput($"Branch '{branchToUpdate}' not found on remote.");
+                                return false;
+                            }
+
+                            localBranch = repo.CreateBranch(branchToUpdate, remoteBranchToTrack.Tip);
+                            repo.Branches.Update(localBranch, b => b.TrackedBranch = remoteBranchToTrack.CanonicalName);
+                        }
+
+                        // Checkout the target branch
+                        var checkoutOptions = new CheckoutOptions()
+                        {
+                            CheckoutModifiers = CheckoutModifiers.Force // Force checkout to avoid conflicts
+                        };
+                        Commands.Checkout(repo, localBranch, checkoutOptions);
+                    }
+
+                    // Reset to latest remote commit (hard reset)
+                    var remoteBranchName = $"origin/{branchToUpdate}";
+                    var remoteBranch = repo.Branches[remoteBranchName];
+                    if (remoteBranch != null)
+                    {
+                        AppendToConsoleOutput($"Resetting to latest {remoteBranchName}...");
+                        repo.Reset(ResetMode.Hard, remoteBranch.Tip);
+                        AppendToConsoleOutput("Repository updated successfully.");
+                    }
+                    else
+                    {
+                        AppendToConsoleOutput($"Remote branch {remoteBranchName} not found.");
+                        return false;
+                    }
+
+                    // Restore stashed changes (this will restore user folder contents)
+                    if (stashResult != null)
+                    {
+                        try
+                        {
+                            AppendToConsoleOutput("Restoring local changes...");
+                            repo.Stashes.Pop(0, new StashApplyOptions()
+                            {
+                                ApplyModifiers = StashApplyModifiers.ReinstateIndex
+                            });
+                            AppendToConsoleOutput("Local changes restored successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            AppendToConsoleOutput($"Warning: Could not restore all local changes: {ex.Message}");
+                            AppendToConsoleOutput("User folder should still be intact due to .gitignore.");
+                        }
+                    }
+
+                    // Update the selected branch in settings if we switched
+                    if (targetBranch != null && targetBranch != appSettings.SelectedBranch)
+                    {
+                        appSettings.SelectedBranch = targetBranch;
+                        SettingsManager.SaveSettings(appSettings);
+                    }
+
+                    // Run npm install to update dependencies
+                    AppendToConsoleOutput("Updating dependencies...");
+                    await RunNpmInstall(spooderPath);
+
+                    AppendToConsoleOutput("Spooder update completed successfully!");
+
+                    // Refresh spooder info to reflect changes
+                    refreshSpooderInfo();
+
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Error updating Spooder: {ex.Message}");
+                return false;
+            }
+        }
+
+        private async Task EnsureUserFolderIgnored(string repoPath)
+        {
+            var gitignorePath = Path.Combine(repoPath, ".gitignore");
+
+            try
+            {
+                // Check if .gitignore exists and contains user folder entry
+                var gitignoreContent = new List<string>();
+
+                if (File.Exists(gitignorePath))
+                {
+                    gitignoreContent.AddRange(await File.ReadAllLinesAsync(gitignorePath));
+                }
+
+                // Check if user folder is already ignored
+                bool userFolderIgnored = gitignoreContent.Any(line =>
+                    line.Trim().Equals("user/", StringComparison.OrdinalIgnoreCase) ||
+                    line.Trim().Equals("user", StringComparison.OrdinalIgnoreCase) ||
+                    line.Trim().Equals("/user/", StringComparison.OrdinalIgnoreCase) ||
+                    line.Trim().Equals("/user", StringComparison.OrdinalIgnoreCase));
+
+                if (!userFolderIgnored)
+                {
+                    AppendToConsoleOutput("Adding user folder to .gitignore...");
+                    gitignoreContent.Add("");
+                    gitignoreContent.Add("# User configuration and data");
+                    gitignoreContent.Add("user/");
+
+                    await File.WriteAllLinesAsync(gitignorePath, gitignoreContent);
+                    AppendToConsoleOutput("User folder added to .gitignore.");
+                }
+                else
+                {
+                    AppendToConsoleOutput("User folder is already in .gitignore.");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Warning: Could not update .gitignore: {ex.Message}");
+            }
+        }
+
+        private async Task<bool> RunNpmInstall(string workingDirectory)
+        {
+            CheckPaths();
+
+            var processStartInfo = new ProcessStartInfo(npmPath, "install --verbose")
+            {
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (var process = new Process { StartInfo = processStartInfo })
+            {
+                process.OutputDataReceived += (sender, e) =>
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        AppendToConsoleOutput(e.Data);
+                    }
+                };
+                process.ErrorDataReceived += (sender, e) =>
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        AppendToConsoleOutput(e.Data);
+                    }
+                };
+
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                await process.WaitForExitAsync();
+
+                return process.ExitCode == 0;
+            }
+        }
+
+        private async Task<bool> SmartDeleteDirectory(string path)
+        {
+            try
+            {
+                // First attempt: try standard deletion
+                AppendToConsoleOutput("Attempting standard directory deletion...");
+                Directory.Delete(path, true);
+                AppendToConsoleOutput("Standard deletion successful.");
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                AppendToConsoleOutput("Access denied. Attempting permission-aware deletion...");
+                return await DeleteWithPermissionHandling(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Directory doesn't exist, consider it successfully deleted
+                AppendToConsoleOutput("Directory not found - already deleted.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Standard deletion failed: {ex.Message}");
+                AppendToConsoleOutput("Attempting permission-aware deletion...");
+                return await DeleteWithPermissionHandling(path);
+            }
+        }
+
+        private async Task<bool> DeleteWithPermissionHandling(string rootPath)
+        {
+            return await Task.Run(() =>
+            {
+                var problematicFiles = new List<string>();
+                var problematicDirs = new List<string>();
+
+                try
+                {
+                    // First pass: identify and fix permission issues
+                    IdentifyAndFixPermissionIssues(rootPath, problematicFiles, problematicDirs);
+
+                    // Second pass: attempt deletion
+                    DeleteDirectoryContents(rootPath);
+
+                    // Finally delete the root directory
+                    var rootDir = new DirectoryInfo(rootPath);
+                    if (rootDir.Exists)
+                    {
+                        try
+                        {
+                            rootDir.Attributes = FileAttributes.Normal;
+                            rootDir.Delete(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            AppendToConsoleOutput($"Could not delete root directory {rootPath}: {ex.Message}");
+                            return false;
+                        }
+                    }
+
+                    AppendToConsoleOutput($"Successfully deleted directory. Fixed permissions on {problematicFiles.Count} files and {problematicDirs.Count} directories.");
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    AppendToConsoleOutput($"Permission-aware deletion failed: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
+        private void IdentifyAndFixPermissionIssues(string path, List<string> problematicFiles, List<string> problematicDirs)
+        {
+            if (!Directory.Exists(path))
+                return;
+
+            var directory = new DirectoryInfo(path);
+
+            // Check and fix directory permissions
+            try
+            {
+                if (HasRestrictiveAttributes(directory.Attributes))
+                {
+                    AppendToConsoleOutput($"Fixing permissions on directory: {path}");
+                    directory.Attributes = FileAttributes.Normal;
+                    problematicDirs.Add(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Warning: Could not fix directory permissions for {path}: {ex.Message}");
+            }
+
+            // Process files in this directory
+            try
+            {
+                foreach (var file in directory.GetFiles())
+                {
+                    try
+                    {
+                        if (HasRestrictiveAttributes(file.Attributes))
+                        {
+                            AppendToConsoleOutput($"Fixing permissions on file: {file.FullName}");
+                            file.Attributes = FileAttributes.Normal;
+                            problematicFiles.Add(file.FullName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendToConsoleOutput($"Warning: Could not fix file permissions for {file.FullName}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Warning: Could not enumerate files in {path}: {ex.Message}");
+            }
+
+            // Recursively process subdirectories
+            try
+            {
+                foreach (var subDir in directory.GetDirectories())
+                {
+                    IdentifyAndFixPermissionIssues(subDir.FullName, problematicFiles, problematicDirs);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Warning: Could not enumerate subdirectories in {path}: {ex.Message}");
+            }
+        }
+
+        private void DeleteDirectoryContents(string path)
+        {
+            if (!Directory.Exists(path))
+                return;
+
+            var directory = new DirectoryInfo(path);
+
+            // Delete all files first
+            try
+            {
+                foreach (var file in directory.GetFiles())
+                {
+                    try
+                    {
+                        // Ensure file is deletable
+                        if (file.Exists)
+                        {
+                            file.Attributes = FileAttributes.Normal;
+                            file.Delete();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendToConsoleOutput($"Warning: Could not delete file {file.FullName}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Warning: Error processing files in {path}: {ex.Message}");
+            }
+
+            // Then delete subdirectories recursively
+            try
+            {
+                foreach (var subDir in directory.GetDirectories())
+                {
+                    DeleteDirectoryContents(subDir.FullName);
+
+                    // Delete the subdirectory itself
+                    try
+                    {
+                        if (subDir.Exists)
+                        {
+                            subDir.Attributes = FileAttributes.Normal;
+                            subDir.Delete(false);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendToConsoleOutput($"Warning: Could not delete directory {subDir.FullName}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Warning: Error processing subdirectories in {path}: {ex.Message}");
+            }
+        }
+
+        private static bool HasRestrictiveAttributes(FileAttributes attributes)
+        {
+            // Check for attributes that might prevent deletion
+            return (attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly ||
+                   (attributes & FileAttributes.Hidden) == FileAttributes.Hidden ||
+                   (attributes & FileAttributes.System) == FileAttributes.System;
         }
     }
 }

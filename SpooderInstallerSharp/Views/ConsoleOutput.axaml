@@ -14,7 +14,6 @@
          to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
 		<vm:MainViewModel />
 	</Design.DataContext>
-	<Border BorderThickness="2" Padding="10">
 		<Grid Background="Black">
 			<ScrollViewer Grid.Row="0"
 			              HorizontalScrollBarVisibility="Disabled"
@@ -28,5 +27,4 @@
 				</StackPanel>
 			</ScrollViewer>
 		</Grid>
-	</Border>
 </UserControl>

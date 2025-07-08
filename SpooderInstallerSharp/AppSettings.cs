@@ -7,10 +7,10 @@ namespace SpooderInstallerSharp.Models
 {
     public class AppSettings
     {
-        public string DefaultSpooderPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
+        public string SpooderInstallationPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
         public string SelectedBranch { get; set; } = "main";
         public bool AutoCheckUpdates { get; set; } = true;
-    }
+    };
 
     public static class SettingsManager
     {
