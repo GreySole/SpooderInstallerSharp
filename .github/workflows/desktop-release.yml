@@ -1,0 +1,55 @@
+name: Build and Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0'
+
+    - name: Restore dependencies
+      run: dotnet restore SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj
+
+    - name: Build Core
+      run: dotnet build SpooderInstallerSharp/SpooderInstallerSharp.csproj --configuration Release --no-restore
+
+    - name: Build Desktop
+      run: dotnet build SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj --configuration Release --no-restore
+
+    - name: Publish
+      run: dotnet publish SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj --configuration Release --no-restore --output publish
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: desktop-app
+        path: publish
+
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: publish/SpooderInstallerSharp.Desktop.exe # Replace with your actual executable path
+        asset_name: SpooderInstallerSharp.Desktop.exe
+        asset_content_type: application/vnd.microsoft.portable-executable
