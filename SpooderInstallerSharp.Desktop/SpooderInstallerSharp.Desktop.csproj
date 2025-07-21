@@ -5,6 +5,7 @@
     One for Windows with net8.0-windows TFM, one for MacOS with net8.0-macos and one with net8.0 TFM for Linux.-->
     <TargetFramework>net8.0-windows</TargetFramework>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+	<ApplicationIcon>Assets/favicon.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -34,6 +35,12 @@
   <Content Include="nodejs\**\*" CopyToPublishDirectory="Always" />
 </ItemGroup>
 
+	<ItemGroup>
+	  <AvaloniaResource Include="Assets\favicon.ico">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </AvaloniaResource>
+	</ItemGroup>
+
 <!-- Ensure .exe files are never bundled -->
 <ItemGroup>
   <ExcludeFromSingleFile Include="nodejs\node.exe" />
@@ -42,8 +49,6 @@
   <ItemGroup>
     <NodeExe Include="$(MSBuildProjectDirectory)\nodejs\node.exe" />
   </ItemGroup>
-  <Copy SourceFiles="@(NodeExe)"
-        DestinationFolder="$(PublishDir)nodejs"
-        SkipUnchangedFiles="true" />
+  <Copy SourceFiles="@(NodeExe)" DestinationFolder="$(PublishDir)nodejs" SkipUnchangedFiles="true" />
 </Target>
 </Project>
