@@ -73,42 +73,38 @@ jobs:
         echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
 
     - name: Check for existing release and Create/Update
+      shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         ASSET_PATH: publish/SpooderInstallerSharp.Desktop.exe
-        ASSET_NAME: SpooderInstallerSharp.Desktop.exe
       run: |
-        # Use a local variable to be absolutely sure
         $currentTag = "${{ steps.get_tag.outputs.TAG_NAME }}"
-
-        Write-Host "Processing tag: '$currentTag'" # Verify again here
-        Write-Host "Length of tag: $($currentTag.Length)" # Check if it's really empty
+        Write-Host "Processing tag: '$currentTag'"
 
         if ([string]::IsNullOrEmpty($currentTag)) {
-          Write-Host "Error: \$currentTag is empty inside the release step. Exiting."
-          exit 1 # Fail if the variable is somehow empty
+          Write-Error "Tag is empty."
+          exit 1
         }
 
-        # Check if a release for this tag already exists
-        # Use $currentTag directly
-        gh release view "$currentTag" > $null 2>&1
+        # Confirm asset path
+        $assetPath = Join-Path $env:GITHUB_WORKSPACE $env:ASSET_PATH
+        if (-not (Test-Path $assetPath)) {
+          Write-Error "Asset not found at $assetPath"
+          exit 1
+        }
+        Write-Host "Uploading asset: $assetPath"
 
+        # Does release exist?
+        gh release view "$currentTag" --repo "$env:GITHUB_REPOSITORY" *> $null
         if ($LASTEXITCODE -eq 0) {
-          Write-Host "Release for tag $currentTag already exists. Updating it."
-          gh release upload "$currentTag" "$ASSET_PATH" --clobber --repo "$env:GITHUB_REPOSITORY"
-          gh release edit "$currentTag" `
-            --title "Release $currentTag" `
-            --prerelease=$false `
-            --draft=$false `
-            --repo "$env:GITHUB_REPOSITORY"
+          Write-Host "Release exists; updating."
+          gh release upload "$currentTag" "$assetPath" --clobber --repo "$env:GITHUB_REPOSITORY"
+          gh release edit "$currentTag" --title "Release $currentTag" --repo "$env:GITHUB_REPOSITORY"
         } else {
-          Write-Host "No release for tag $currentTag found. Creating a new one."
-          gh release create "$currentTag" `
+          Write-Host "No release; creating."
+          gh release create "$currentTag" "$assetPath" `
             --title "Release $currentTag" `
-            --prerelease=$false `
-            --draft=$false `
             --notes "Automated release for $currentTag" `
-            "$ASSET_PATH" `
             --repo "$env:GITHUB_REPOSITORY"
         }
-      shell: pwsh
+
