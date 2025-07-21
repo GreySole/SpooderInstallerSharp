@@ -29,7 +29,7 @@ jobs:
       run: dotnet publish SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj --configuration Release --no-restore --output publish
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: desktop-app
         path: publish
