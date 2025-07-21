@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to build and release (e.g., v1.0.0)'
+        required: true
+        default: 'v0.0.0-dev' # A dummy default for manual runs
       
 permissions:
   contents: write
@@ -47,7 +53,7 @@ jobs:
         # Check if a release for this tag already exists
         gh release view "$TAG" > /dev/null 2>&1
 
-        if [ $? -eq 0 ]; then
+        if ( $? -eq 0 ); then
           echo "Release for tag $TAG already exists. Updating it."
           # Delete existing asset if it exists (optional, but ensures clean update)
           # gh release delete-asset "$TAG" "$ASSET_NAME" --repo "$GITHUB_REPOSITORY" || true
