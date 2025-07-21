@@ -9,47 +9,66 @@ on:
       tag_name:
         description: 'Tag name to build and release (e.g., v1.0.0)'
         required: true
-        default: 'v0.0.0-dev' # A dummy default for manual runs
-      
+        default: 'v0.0.0-dev'
+
 permissions:
   contents: write
-  
+
+env:
+  DESKTOP_PROJ: SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj
+  CORE_PROJ: SpooderInstallerSharp/SpooderInstallerSharp.csproj
+  PUBLISH_DIR: publish
+  ASSET_NAME: SpooderInstallerSharp.Desktop.exe
+
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v3
+
+    # Cache NuGet packages
+    - name: Cache NuGet
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: '8.0'
 
     - name: Restore dependencies
-      run: dotnet restore SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj
+      run: dotnet restore ${{ env.DESKTOP_PROJ }}
 
     - name: Build Core
-      run: dotnet build SpooderInstallerSharp/SpooderInstallerSharp.csproj --configuration Release --no-restore
+      run: dotnet build ${{ env.CORE_PROJ }} --configuration Release --no-restore
 
     - name: Build Desktop
-      run: dotnet build SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj --configuration Release --no-restore
+      run: dotnet build ${{ env.DESKTOP_PROJ }} --configuration Release --no-restore
 
     - name: Publish
-      run: dotnet publish SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj --configuration Release --no-restore --output publish
+      run: dotnet publish ${{ env.DESKTOP_PROJ }} --configuration Release --no-restore --output ${{ env.PUBLISH_DIR }}
 
-    - name: Debug Publish Output # <-- NEW DEBUG STEP
+    - name: List publish output
       shell: pwsh
-      run: |
-        Write-Host "Contents of publish directory:"
-        Get-ChildItem -Recurse -Path publish # List all files and subdirectories
+      run: Get-ChildItem -Recurse -Path ${{ env.PUBLISH_DIR }}
+
+    # Upload build artifacts (helpful for debugging or reusing in other jobs)
+    - name: Upload Published Binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: desktop-binaries
+        path: ${{ env.PUBLISH_DIR }}
 
     - name: Get Tag Name
       id: get_tag
       shell: pwsh
       run: |
-        Write-Host "Raw GITHUB_REF: '$env:GITHUB_REF'"
-
-        $tagName = "" # Initialize $tagName
+        $tagName = ""
         if ($env:GITHUB_REF -like 'refs/tags/*') {
           $tagName = $env:GITHUB_REF.Replace('refs/tags/', '')
         }
@@ -58,53 +77,40 @@ jobs:
         }
         else {
           $tagName = "untagged-build-${{ github.sha }}"
-          Write-Host "Warning: No tag found in GITHUB_REF or workflow_dispatch input. Using default: $tagName"
         }
-
-        # --- Add more explicit trimming and validation here ---
-        $tagName = $tagName.Trim() # Trim any whitespace
+        $tagName = $tagName.Trim()
         if ([string]::IsNullOrEmpty($tagName)) {
-          Write-Host "Error: Extracted tag name is empty after processing!"
-          exit 1 # Fail fast if tag is genuinely empty
+          Write-Error "Tag name is empty!"
+          exit 1
         }
-        # ---------------------------------------------------
-
-        Write-Host "Extracted TAG_NAME (after trim): '$tagName'"
         echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
+        Write-Host "Using TAG_NAME: $tagName"
 
-    - name: Check for existing release and Create/Update
+    - name: Create or Update Release
       shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        ASSET_PATH: publish/SpooderInstallerSharp.Desktop.exe
       run: |
         $currentTag = "${{ steps.get_tag.outputs.TAG_NAME }}"
-        Write-Host "Processing tag: '$currentTag'"
+        $assetPath = Join-Path $env:GITHUB_WORKSPACE "${{ env.PUBLISH_DIR }}/${{ env.ASSET_NAME }}"
+        Write-Host "Processing release for tag: $currentTag"
+        Write-Host "Asset path: $assetPath"
 
-        if ([string]::IsNullOrEmpty($currentTag)) {
-          Write-Error "Tag is empty."
-          exit 1
-        }
-
-        # Confirm asset path
-        $assetPath = Join-Path $env:GITHUB_WORKSPACE $env:ASSET_PATH
         if (-not (Test-Path $assetPath)) {
           Write-Error "Asset not found at $assetPath"
           exit 1
         }
-        Write-Host "Uploading asset: $assetPath"
 
-        # Does release exist?
+        # Check if release exists
         gh release view "$currentTag" --repo "$env:GITHUB_REPOSITORY" *> $null
         if ($LASTEXITCODE -eq 0) {
-          Write-Host "Release exists; updating."
+          Write-Host "Release exists; uploading asset."
           gh release upload "$currentTag" "$assetPath" --clobber --repo "$env:GITHUB_REPOSITORY"
           gh release edit "$currentTag" --title "Release $currentTag" --repo "$env:GITHUB_REPOSITORY"
         } else {
-          Write-Host "No release; creating."
+          Write-Host "Creating new release."
           gh release create "$currentTag" "$assetPath" `
             --title "Release $currentTag" `
             --notes "Automated release for $currentTag" `
             --repo "$env:GITHUB_REPOSITORY"
         }
-
