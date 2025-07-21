@@ -18,7 +18,9 @@ env:
   DESKTOP_PROJ: SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj
   CORE_PROJ: SpooderInstallerSharp/SpooderInstallerSharp.csproj
   PUBLISH_DIR: publish
-  ASSET_NAME: SpooderInstallerSharp.Desktop.exe
+  ASSET_EXE: SpooderInstallerSharp.Desktop.exe   # Name of produced single-file exe
+  RUNTIME: win-x64
+  SELF_CONTAINED: true
 
 jobs:
   build:
@@ -50,14 +52,23 @@ jobs:
     - name: Build Desktop
       run: dotnet build ${{ env.DESKTOP_PROJ }} --configuration Release --no-restore
 
+    # Publish single-file, self-contained, win-x64; include native libs for self-extract
     - name: Publish
-      run: dotnet publish ${{ env.DESKTOP_PROJ }} --configuration Release --no-restore --output ${{ env.PUBLISH_DIR }}
+      run: >
+        dotnet publish ${{ env.DESKTOP_PROJ }}
+        --configuration Release
+        --no-restore
+        --runtime ${{ env.RUNTIME }}
+        --self-contained ${{ env.SELF_CONTAINED }}
+        -p:PublishSingleFile=true
+        -p:IncludeNativeLibrariesForSelfExtract=true
+        --output ${{ env.PUBLISH_DIR }}
 
     - name: List publish output
       shell: pwsh
       run: Get-ChildItem -Recurse -Path ${{ env.PUBLISH_DIR }}
 
-    # Upload build artifacts (helpful for debugging or reusing in other jobs)
+    # Upload full publish directory (diagnostics / downstream)
     - name: Upload Published Binaries
       uses: actions/upload-artifact@v4
       with:
@@ -86,30 +97,69 @@ jobs:
         echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
         Write-Host "Using TAG_NAME: $tagName"
 
+    # Package exe + nodejs folder into versioned zip
+    - name: Package Release Zip
+      id: package
+      shell: pwsh
+      run: |
+        $publishDir = Join-Path $env:GITHUB_WORKSPACE "${{ env.PUBLISH_DIR }}"
+        $exePath     = Join-Path $publishDir "${{ env.ASSET_EXE }}"
+        $nodeDir     = Join-Path $publishDir "nodejs"
+
+        if (-not (Test-Path $exePath)) {
+          Write-Error "Expected EXE not found: $exePath"
+          exit 1
+        }
+        $nodeExe = Join-Path $nodeDir "node.exe"
+        if (-not (Test-Path $nodeExe)) {
+          Write-Error "Expected node.exe not found in: $nodeExe. Check project publish copy."
+          Get-ChildItem -Recurse -Path $publishDir
+          exit 1
+        }
+        if (-not (Test-Path $nodeDir)) {
+          Write-Error "nodejs folder missing at $nodeDir"
+          exit 1
+        }
+
+        $tagName = "${{ steps.get_tag.outputs.TAG_NAME }}"
+        # e.g., SpooderInstallerSharp.Desktop-v1.2.3-win-x64.zip
+        $zipName = "SpooderInstallerSharp.Desktop-$tagName-${{ env.RUNTIME }}.zip"
+        $zipPath = Join-Path $publishDir $zipName
+
+        if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+
+        # Compress both the exe and entire nodejs folder
+        Compress-Archive -Path $exePath, $nodeDir -DestinationPath $zipPath -Force
+
+        Write-Host "Created package: $zipPath"
+        echo "ZIP_NAME=$zipName" >> $env:GITHUB_OUTPUT
+        echo "ZIP_PATH=$zipPath" >> $env:GITHUB_OUTPUT
+
     - name: Create or Update Release
       shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         $currentTag = "${{ steps.get_tag.outputs.TAG_NAME }}"
-        $assetPath = Join-Path $env:GITHUB_WORKSPACE "${{ env.PUBLISH_DIR }}/${{ env.ASSET_NAME }}"
+        $zipPath    = "${{ steps.package.outputs.ZIP_PATH }}"
+        $zipName    = "${{ steps.package.outputs.ZIP_NAME }}"
         Write-Host "Processing release for tag: $currentTag"
-        Write-Host "Asset path: $assetPath"
+        Write-Host "Asset path: $zipPath"
 
-        if (-not (Test-Path $assetPath)) {
-          Write-Error "Asset not found at $assetPath"
+        if (-not (Test-Path $zipPath)) {
+          Write-Error "Release asset zip not found at $zipPath"
           exit 1
         }
 
         # Check if release exists
         gh release view "$currentTag" --repo "$env:GITHUB_REPOSITORY" *> $null
         if ($LASTEXITCODE -eq 0) {
-          Write-Host "Release exists; uploading asset."
-          gh release upload "$currentTag" "$assetPath" --clobber --repo "$env:GITHUB_REPOSITORY"
+          Write-Host "Release exists; uploading zip asset."
+          gh release upload "$currentTag" "$zipPath" --clobber --repo "$env:GITHUB_REPOSITORY"
           gh release edit "$currentTag" --title "Release $currentTag" --repo "$env:GITHUB_REPOSITORY"
         } else {
           Write-Host "Creating new release."
-          gh release create "$currentTag" "$assetPath" `
+          gh release create "$currentTag" "$zipPath" `
             --title "Release $currentTag" `
             --notes "Automated release for $currentTag" `
             --repo "$env:GITHUB_REPOSITORY"
