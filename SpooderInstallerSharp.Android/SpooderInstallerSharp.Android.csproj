@@ -4,11 +4,14 @@
     <TargetFramework>net8.0-android</TargetFramework>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
-    <ApplicationId>com.CompanyName.AvaloniaTest</ApplicationId>
+    <ApplicationId>com.GreySole.Spooder</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidEnableProfiledAot>False</AndroidEnableProfiledAot>
+	  <NullabilityInfoContextSupport>true</NullabilityInfoContextSupport>
+	<PublishTrimmed>false</PublishTrimmed>
+	<TrimMode>partial</TrimMode>
   </PropertyGroup>
 
   <ItemGroup>

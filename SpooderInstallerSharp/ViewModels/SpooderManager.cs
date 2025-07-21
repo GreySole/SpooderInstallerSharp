@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace SpooderInstallerSharp.ViewModels
@@ -78,8 +79,9 @@ namespace SpooderInstallerSharp.ViewModels
 
         private readonly Action<string> AppendToConsoleOutput;
         public Process spooderProcess;
-        public string nodePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nodejs", "node.exe");
-        public string npmPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nodejs", "npm.cmd");
+        static string exeDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+        public string nodePath = Path.Combine(exeDir, "nodejs", "node.exe");
+        public string npmPath = Path.Combine(exeDir, "nodejs", "npm.cmd");
         public string mingwPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "mingw");
         //public string defaultLocalPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
         public SpooderInfo spooderInfo { get; set; }
@@ -90,6 +92,9 @@ namespace SpooderInstallerSharp.ViewModels
         {
             Debug.WriteLine($"SpooderManager created");
             AppendToConsoleOutput = appendToConsoleOutput;
+
+            AppendToConsoleOutput($"Checking for Node.js: {nodePath}");
+            AppendToConsoleOutput($"Checking for NPM: {npmPath}");
 
             _ipc = new IPC(appendToConsoleOutput);
             _ipc.MessageReceived += (sender, message) => OnMessageReceived(message);
@@ -113,6 +118,9 @@ namespace SpooderInstallerSharp.ViewModels
                 if (System.Version.TryParse(spooderVersion, out var installedVersion))
                 {
                     spooderInfo.version = installedVersion.ToString();
+
+                    CheckRemoteVersion(appSettings.SelectedBranch ?? "main", installedVersion);
+
                     if (installedVersion < new System.Version(0, 5, 0))
                     {
                         AppendToConsoleOutput($"Spooder version {installedVersion} is outdated. Please update to the latest version.");
@@ -190,6 +198,72 @@ namespace SpooderInstallerSharp.ViewModels
             }
         }
 
+        private async void CheckRemoteVersion(string branch, System.Version installedVersion)
+        {
+            try
+            {
+                AppendToConsoleOutput($"Checking remote version on branch '{branch}'...");
+
+                // Download package.json directly from GitHub's raw content API
+                string packageJsonUrl = $"https://raw.githubusercontent.com/GreySole/Spooder/{branch}/package.json";
+
+                using (var httpClient = new HttpClient())
+                {
+                    // Set a reasonable timeout
+                    httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+                    var response = await httpClient.GetAsync(packageJsonUrl);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string remotePackageContent = await response.Content.ReadAsStringAsync();
+                        JObject remotePackageJson = JObject.Parse(remotePackageContent);
+                        var remoteVersionString = remotePackageJson["version"]?.ToString();
+
+                        if (System.Version.TryParse(remoteVersionString, out var remoteVersion))
+                        {
+                            if (remoteVersion > installedVersion)
+                            {
+                                AppendToConsoleOutput($"Update available: Remote version {remoteVersion} is newer than installed version {installedVersion}");
+                            }
+                            else if (remoteVersion == installedVersion)
+                            {
+                                AppendToConsoleOutput($"You have the latest version ({installedVersion}) from branch '{branch}'");
+                            }
+                            else
+                            {
+                                AppendToConsoleOutput($"Your version ({installedVersion}) is newer than remote version ({remoteVersion}) on branch '{branch}'");
+                            }
+                        }
+                        else
+                        {
+                            AppendToConsoleOutput($"Could not parse remote version: {remoteVersionString}");
+                        }
+                    }
+                    else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        AppendToConsoleOutput($"Branch '{branch}' not found or package.json doesn't exist on this branch");
+                    }
+                    else
+                    {
+                        AppendToConsoleOutput($"Failed to fetch remote package.json: {response.StatusCode}");
+                    }
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                AppendToConsoleOutput($"Network error checking remote version: {ex.Message}");
+            }
+            catch (TaskCanceledException)
+            {
+                AppendToConsoleOutput("Request timed out while checking remote version");
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Error checking remote version: {ex.Message}");
+            }
+        }
+
         public SpooderInfo getSpooderInfo()
         {
             return spooderInfo;
@@ -197,6 +271,7 @@ namespace SpooderInstallerSharp.ViewModels
 
         public bool StartSpooder()
         {
+            AppendToConsoleOutput($"Attempting to start Spooder...");
             var appSettings = SettingsManager.LoadSettings();
             var scriptPath = appSettings.SpooderInstallationPath;
             CheckPaths();
@@ -423,11 +498,13 @@ namespace SpooderInstallerSharp.ViewModels
         {
             if (!File.Exists(nodePath))
             {
+                AppendToConsoleOutput("Node.js executable not found.");
                 throw new FileNotFoundException("Node.js executable not found.", nodePath);
             }
 
             if (!File.Exists(npmPath))
             {
+                AppendToConsoleOutput("npm script not found.");
                 throw new FileNotFoundException("npm script not found.", npmPath);
             }
         }

@@ -120,9 +120,10 @@ public class MainViewModel : ReactiveObject
     public void AppendToConsoleOutput(string text)
     {
         Debug.WriteLine(text);
-        if (text != null)
+        if (!string.IsNullOrEmpty(text))
         {
-            ConsoleOutput.Add(text);
+            // Use Dispatcher only for thread safety, not UI manipulation
+            Dispatcher.UIThread.Post(() => ConsoleOutput.Add(text));
         }
     }
 

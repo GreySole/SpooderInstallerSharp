@@ -2,8 +2,12 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using SpooderInstallerSharp.ViewModels;
 using SpooderInstallerSharp.Views;
+using System;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace SpooderInstallerSharp;
 
@@ -14,6 +18,16 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+
+        AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+        {
+            File.AppendAllText("fatal.log", $"Unhandled: {e.ExceptionObject}\n");
+        };
+        TaskScheduler.UnobservedTaskException += (sender, e) =>
+        {
+            File.AppendAllText("fatal.log", $"Unobserved: {e.Exception}\n");
+            e.SetObserved();
+        };
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -30,7 +44,8 @@ public partial class App : Application
             desktop.MainWindow = new Window
             {
                 Content = mainView,
-                Title = "SpooderInstallerSharp",
+                Title = "Spooder Installer",
+                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://SpooderInstallerSharp/Assets/favicon.ico"))),
                 DataContext = _mainViewModel
             };
 

@@ -13,18 +13,24 @@ public partial class MainWindow : UserControl
     private ConsoleOutput consoleOutput = new ConsoleOutput();
     private Settings settingsView = new Settings();
     private bool settingsOpened = false;
+    private bool _initialViewSet = false; // Add this flag
+
     public MainWindow()
     {
         InitializeComponent();
         Debug.WriteLine($"Need Initialization {SettingsManager.InitializationNeeded}");
+
+        // Don't set initial view here - DataContext isn't available yet
+        // Just determine which view should be shown
         if (SettingsManager.InitializationNeeded)
         {
-            Debug.WriteLine("Settings initialization needed, showing settings view.");
-            ShowSettingsView();
+            Debug.WriteLine("Settings initialization needed, will show settings view.");
+            settingsOpened = true; // Set flag but don't show view yet
         }
         else
         {
-            ShowMainView();
+            Debug.WriteLine("Will show main view.");
+            settingsOpened = false; // Set flag but don't show view yet
         }
     }
 
@@ -46,6 +52,20 @@ public partial class MainWindow : UserControl
             };
 
             ApplySpooderInfo();
+
+            // Now that DataContext is set, show the initial view
+            if (!_initialViewSet)
+            {
+                if (settingsOpened)
+                {
+                    ShowSettingsView();
+                }
+                else
+                {
+                    ShowMainView();
+                }
+                _initialViewSet = true;
+            }
         }
     }
 
@@ -68,17 +88,35 @@ public partial class MainWindow : UserControl
 
     private void ShowMainView()
     {
+        Debug.WriteLine("ShowMainView called");
         consoleOutput.DataContext = this.DataContext;
         var contentFrame = this.FindControl<ContentControl>("ContentFrame");
-        contentFrame.Content = consoleOutput;
+        if (contentFrame != null)
+        {
+            contentFrame.Content = consoleOutput;
+            Debug.WriteLine("ConsoleOutput set as content");
+        }
+        else
+        {
+            Debug.WriteLine("ContentFrame not found!");
+        }
         settingsOpened = false;
     }
 
     private void ShowSettingsView()
     {
+        Debug.WriteLine("ShowSettingsView called");
         settingsView.DataContext = this.DataContext;
         var contentFrame = this.FindControl<ContentControl>("ContentFrame");
-        contentFrame.Content = settingsView;
+        if (contentFrame != null)
+        {
+            contentFrame.Content = settingsView;
+            Debug.WriteLine("Settings set as content");
+        }
+        else
+        {
+            Debug.WriteLine("ContentFrame not found!");
+        }
         settingsOpened = true;
     }
 

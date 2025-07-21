@@ -8,6 +8,12 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaXaml Remove="nodejs\**" />
+    <Compile Remove="nodejs\**" />
+    <EmbeddedResource Remove="nodejs\**" />
+    <None Remove="nodejs\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
@@ -21,4 +27,22 @@
   <ItemGroup>
     <ProjectReference Include="..\SpooderInstallerSharp\SpooderInstallerSharp.csproj" />
   </ItemGroup>
+
+	<ItemGroup>
+  <!-- Keep all nodejs files external to the single-file bundle -->
+  <Content Include="nodejs\**\*" CopyToPublishDirectory="Always" />
+</ItemGroup>
+
+<!-- Ensure .exe files are never bundled -->
+<ItemGroup>
+  <ExcludeFromSingleFile Include="nodejs\node.exe" />
+</ItemGroup>
+<Target Name="CopyNodeExeAfterPublish" AfterTargets="Publish">
+  <ItemGroup>
+    <NodeExe Include="$(MSBuildProjectDirectory)\nodejs\node.exe" />
+  </ItemGroup>
+  <Copy SourceFiles="@(NodeExe)"
+        DestinationFolder="$(PublishDir)nodejs"
+        SkipUnchangedFiles="true" />
+</Target>
 </Project>

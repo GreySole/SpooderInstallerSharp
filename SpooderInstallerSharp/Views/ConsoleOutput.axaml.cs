@@ -2,7 +2,9 @@
 using Avalonia.Media;
 using Avalonia.Threading;
 using SpooderInstallerSharp.ViewModels;
+using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using Color = Avalonia.Media.Color;
 
@@ -10,95 +12,83 @@ namespace SpooderInstallerSharp.Views;
 
 public partial class ConsoleOutput : UserControl
 {
+    private StackPanel? _consoleOutputPanel;
 
     public ConsoleOutput()
     {
         InitializeComponent();
-        var ConsoleOutputPanel = this.FindControl<StackPanel>("ConsoleOutputPanel");
+        _consoleOutputPanel = this.FindControl<StackPanel>("ConsoleOutputPanel");
+        Debug.WriteLine($"initializing ConsoleOutput");
+    }
 
-        this.DataContextChanged += (s, e) =>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+
+        if (DataContext is MainViewModel viewModel)
         {
-            
-            var mainViewModel = DataContext as MainViewModel;
-            if (mainViewModel == null)
+            // Subscribe to collection changes
+            viewModel.ConsoleOutput.CollectionChanged += OnConsoleOutputChanged;
+
+            // Process existing items
+            ProcessExistingItems(viewModel.ConsoleOutput);
+        }
+    }
+
+    private void OnConsoleOutputChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems != null)
+        {
+            foreach (var newItem in e.NewItems)
             {
-                Debug.WriteLine($"MainViewModel null!");
-                return;
+                Dispatcher.UIThread.InvokeAsync(() => AddConsoleItem(newItem?.ToString()));
             }
+        }
+    }
 
-            // Example of adding text dynamically
-            mainViewModel.ConsoleOutput.CollectionChanged += (s, e) =>
-            {
-                if (e.NewItems != null)
-                {
-                    foreach (var newItem in e.NewItems)
-                    {
-                        Dispatcher.UIThread.InvokeAsync(() =>
-                        {
-                            string originalText = newItem.ToString();
-                            string processedText = originalText;
-                            var matchedKeys = new List<string>();
+    private void ProcessExistingItems(IEnumerable<string> items)
+    {
+        foreach (var item in items)
+        {
+            AddConsoleItem(item);
+        }
+    }
 
-                            foreach (var kvp in ColorUtil.LogEffects)
-                            {
-                                string key = kvp.Key;
-                                string value = kvp.Value.ToString();
+    private void AddConsoleItem(string? text)
+    {
+        if (string.IsNullOrEmpty(text) || _consoleOutputPanel == null)
+            return;
 
-                                if (processedText.Contains(value))
-                                {
-                                    matchedKeys.Add(key);
-                                    processedText = processedText.Replace(value, string.Empty);
-                                }
-                            }
+        var (processedText, matchedKeys) = ProcessLogText(text);
 
-                            var textBlock = new TextBlock { Text = processedText };
-                            textBlock.TextWrapping = TextWrapping.Wrap;
-
-                            ColorUtil.ApplyLogStyle(textBlock, matchedKeys);
-
-                            // Assuming you have a reference to the ConsoleOutputPanel
-                            if (ConsoleOutputPanel != null)
-                            {
-                                ConsoleOutputPanel.Children.Add(textBlock);
-                            }
-                        });
-                    }
-                }
-            };
-
-            if (ConsoleOutputPanel != null)
-            {
-                // Process each TextBlock in the consoleOutputPanel
-                foreach (var child in ConsoleOutputPanel.Children)
-                {
-                    if (child is TextBlock textBlock)
-                    {
-                        string originalText = textBlock.Text;
-                        string processedText = originalText;
-                        var matchedKeys = new List<string>();
-
-                        foreach (var kvp in ColorUtil.LogEffects)
-                        {
-                            string key = kvp.Key;
-                            string kvalue = kvp.Value.ToString();
-
-                            if (processedText.Contains(kvalue))
-                            {
-                                matchedKeys.Add(key);
-                                processedText = processedText.Replace(kvalue, string.Empty);
-                            }
-                        }
-
-                        // Update the TextBlock text
-                        textBlock.Text = processedText;
-
-                    }
-                }
-            }
-
+        var textBlock = new TextBlock
+        {
+            Text = processedText,
+            TextWrapping = TextWrapping.Wrap
         };
 
+        ColorUtil.ApplyLogStyle(textBlock, matchedKeys);
+        _consoleOutputPanel.Children.Add(textBlock);
+    }
 
+    private (string processedText, List<string> matchedKeys) ProcessLogText(string originalText)
+    {
+        string processedText = originalText;
+        var matchedKeys = new List<string>();
+
+        foreach (var kvp in ColorUtil.LogEffects)
+        {
+            string key = kvp.Key;
+            string value = kvp.Value.ToString();
+
+            if (processedText.Contains(value))
+            {
+                matchedKeys.Add(key);
+                processedText = processedText.Replace(value, string.Empty);
+            }
+        }
+
+        return (processedText, matchedKeys);
     }
 
     private void OnGoToSettingsClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
