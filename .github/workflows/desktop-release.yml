@@ -48,26 +48,23 @@ jobs:
         ASSET_PATH: publish/SpooderInstallerSharp.Desktop.exe # Define your asset path
         ASSET_NAME: SpooderInstallerSharp.Desktop.exe # Define your desired asset name
       run: |
+        # Define TAG variable inside the run block where outputs are available
+        $TAG = "${{ steps.get_tag.outputs.TAG_NAME }}"
+        Write-Host "Processing tag: $TAG" # Debugging line to see the tag value
+
         # Check if a release for this tag already exists
-        # gh release view returns non-zero exit code if not found
-        # We check $LASTEXITCODE which is PowerShell's equivalent of Bash's $?
         gh release view "$TAG" > $null 2>&1
 
-        if ($LASTEXITCODE -eq 0) { # Correct PowerShell 'if' syntax: 'if (condition) { ... }'
+        if ($LASTEXITCODE -eq 0) {
           Write-Host "Release for tag $TAG already exists. Updating it."
-          # Upload asset, clobbering (replacing) if it already exists
-          # Using --repo is good practice, but not strictly required if in the correct repo context
           gh release upload "$TAG" "$ASSET_PATH" --clobber --repo "$env:GITHUB_REPOSITORY"
-
-          # Edit the release details (title, draft, prerelease status)
           gh release edit "$TAG" `
             --title "Release $TAG" `
             --prerelease=$false `
             --draft=$false `
             --repo "$env:GITHUB_REPOSITORY"
-        } else { # No 'then' keyword in PowerShell
+        } else {
           Write-Host "No release for tag $TAG found. Creating a new one."
-          # Create a new release with the asset
           gh release create "$TAG" `
             --title "Release $TAG" `
             --prerelease=$false `
@@ -76,4 +73,4 @@ jobs:
             "$ASSET_PATH" `
             --repo "$env:GITHUB_REPOSITORY"
         }
-      shell: pwsh # Explicitly set the shell for clarity, though it's default on windows-latest
+      shell: pwsh
