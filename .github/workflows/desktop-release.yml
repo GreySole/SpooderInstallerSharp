@@ -59,7 +59,7 @@ jobs:
 
     # Upload build artifacts (helpful for debugging or reusing in other jobs)
     - name: Upload Published Binaries
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: desktop-binaries
         path: ${{ env.PUBLISH_DIR }}
