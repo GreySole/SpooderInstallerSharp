@@ -37,9 +37,30 @@ jobs:
     - name: Publish
       run: dotnet publish SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj --configuration Release --no-restore --output publish
 
-    - name: Get Tag Name
+    - name: Get Tag Name # Corrected for PowerShell
       id: get_tag
-      run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      shell: pwsh # Explicitly use PowerShell for this step
+      run: |
+        # Debugging: Print raw GITHUB_REF
+        Write-Host "Raw GITHUB_REF: '$env:GITHUB_REF'"
+
+        # Check if it's a tag push
+        if ($env:GITHUB_REF -like 'refs/tags/*') {
+          $tagName = $env:GITHUB_REF.Replace('refs/tags/', '')
+        }
+        # Handle workflow_dispatch input if provided and not a tag push
+        elseif ("${{ github.event.inputs.tag_name }}" -ne "") {
+          $tagName = "${{ github.event.inputs.tag_name }}"
+        }
+        else {
+          # Fallback if no tag or input, or adjust logic as needed for untagged pushes
+          $tagName = "untagged-build-${{ github.sha }}" # Example fallback
+          Write-Host "Warning: No tag found in GITHUB_REF or workflow_dispatch input. Using default: $tagName"
+        }
+
+        Write-Host "Extracted TAG_NAME: '$tagName'"
+        # Set the output variable using PowerShell's method
+        echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
 
     - name: Check for existing release and Create/Update
       env:
