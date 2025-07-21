@@ -49,29 +49,31 @@ jobs:
         ASSET_NAME: SpooderInstallerSharp.Desktop.exe # Define your desired asset name
       run: |
         # Check if a release for this tag already exists
-        # `gh release view` returns exit code 0 if found, non-zero if not found
-        gh release view "$TAG" > /dev/null 2>&1
+        # gh release view returns non-zero exit code if not found
+        # We check $LASTEXITCODE which is PowerShell's equivalent of Bash's $?
+        gh release view "$TAG" > $null 2>&1
 
-        # Check the exit code of the previous command
-        if [ $? -eq 0 ]; then # Correct Bash 'if' syntax: 'if [ condition ]; then'
-          echo "Release for tag $TAG already exists. Updating it."
+        if ($LASTEXITCODE -eq 0) { # Correct PowerShell 'if' syntax: 'if (condition) { ... }'
+          Write-Host "Release for tag $TAG already exists. Updating it."
           # Upload asset, clobbering (replacing) if it already exists
-          gh release upload "$TAG" "$ASSET_PATH" --clobber --repo "$GITHUB_REPOSITORY"
+          # Using --repo is good practice, but not strictly required if in the correct repo context
+          gh release upload "$TAG" "$ASSET_PATH" --clobber --repo "$env:GITHUB_REPOSITORY"
 
           # Edit the release details (title, draft, prerelease status)
-          gh release edit "$TAG" \
-            --title "Release $TAG" \
-            --prerelease=false \
-            --draft=false \
-            --repo "$GITHUB_REPOSITORY"
-        else
-          echo "No release for tag $TAG found. Creating a new one."
+          gh release edit "$TAG" `
+            --title "Release $TAG" `
+            --prerelease=$false `
+            --draft=$false `
+            --repo "$env:GITHUB_REPOSITORY"
+        } else { # No 'then' keyword in PowerShell
+          Write-Host "No release for tag $TAG found. Creating a new one."
           # Create a new release with the asset
-          gh release create "$TAG" \
-            --title "Release $TAG" \
-            --prerelease=false \
-            --draft=false \
-            --notes "Automated release for $TAG" \
-            "$ASSET_PATH" \
-            --repo "$GITHUB_REPOSITORY"
-        fi # Correct Bash 'if' syntax: 'fi' to close the if statement
+          gh release create "$TAG" `
+            --title "Release $TAG" `
+            --prerelease=$false `
+            --draft=$false `
+            --notes "Automated release for $TAG" `
+            "$ASSET_PATH" `
+            --repo "$env:GITHUB_REPOSITORY"
+        }
+      shell: pwsh # Explicitly set the shell for clarity, though it's default on windows-latest
