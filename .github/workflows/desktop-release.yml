@@ -37,6 +37,12 @@ jobs:
     - name: Publish
       run: dotnet publish SpooderInstallerSharp.Desktop/SpooderInstallerSharp.Desktop.csproj --configuration Release --no-restore --output publish
 
+    - name: Debug Publish Output # <-- NEW DEBUG STEP
+      shell: pwsh
+      run: |
+        Write-Host "Contents of publish directory:"
+        Get-ChildItem -Recurse -Path publish # List all files and subdirectories
+
     - name: Get Tag Name
       id: get_tag
       shell: pwsh
