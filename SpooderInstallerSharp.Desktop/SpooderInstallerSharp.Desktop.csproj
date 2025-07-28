@@ -10,12 +10,6 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
-  <ItemGroup>
-    <AvaloniaXaml Remove="nodejs\**" />
-    <Compile Remove="nodejs\**" />
-    <EmbeddedResource Remove="nodejs\**" />
-    <None Remove="nodejs\**" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
