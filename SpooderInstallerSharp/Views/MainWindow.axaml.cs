@@ -203,108 +203,60 @@ public partial class MainWindow : UserControl
 
     private void ApplyCustomSpooder(CustomSpooder customSpooder)
     {
-        var longlegleftBlock = this.FindControl<TextBlock>("longlegleft");
-        if (longlegleftBlock != null)
+        if (customSpooder?.Parts == null || customSpooder.Parts.Count == 0)
+            return;
+
+        // Define the control names in the display order (left to right in the UI)
+        var controlNames = new[]
         {
-            longlegleftBlock.Text = customSpooder.parts.longlegleft;
-            if (customSpooder.colors?.longlegleft != null)
-                longlegleftBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.longlegleft);
+            "longlegleft", "shortlegleft", "bodyleft", "littleeyeleft", "bigeyeleft", 
+            "fangleft", "mouth", "fangright", "bigeyeright", "littleeyeright", 
+            "bodyright", "shortlegright", "longlegright"
+        };
+
+        // Clear all controls first (set to defaults)
+        foreach (var controlName in controlNames)
+        {
+            var textBlock = this.FindControl<TextBlock>(controlName);
+            if (textBlock != null)
+            {
+                textBlock.Text = "";
+                textBlock.Foreground = Avalonia.Media.Brush.Parse("#FFFFFF");
+            }
         }
 
-        var shortlegleftBlock = this.FindControl<TextBlock>("shortlegleft");
-        if (shortlegleftBlock != null)
+        // Apply each part from the array to the corresponding control
+        for (int i = 0; i < Math.Min(customSpooder.Parts.Count, controlNames.Length); i++)
         {
-            shortlegleftBlock.Text = customSpooder.parts.shortlegleft;
-            if (customSpooder.colors?.shortlegleft != null)
-                shortlegleftBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.shortlegleft);
-        }
-
-        var bodyleftBlock = this.FindControl<TextBlock>("bodyleft");
-        if (bodyleftBlock != null)
-        {
-            bodyleftBlock.Text = customSpooder.parts.bodyleft;
-            if (customSpooder.colors?.bodyleft != null)
-                bodyleftBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.bodyleft);
-        }
-
-        var littleeyeleftBlock = this.FindControl<TextBlock>("littleeyeleft");
-        if (littleeyeleftBlock != null)
-        {
-            littleeyeleftBlock.Text = customSpooder.parts.littleeyeleft;
-            if (customSpooder.colors?.littleeyeleft != null)
-                littleeyeleftBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.littleeyeleft);
-        }
-
-        var bigeyeleftBlock = this.FindControl<TextBlock>("bigeyeleft");
-        if (bigeyeleftBlock != null)
-        {
-            bigeyeleftBlock.Text = customSpooder.parts.bigeyeleft;
-            if (customSpooder.colors?.bigeyeleft != null)
-                bigeyeleftBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.bigeyeleft);
-        }
-
-        var fangleftBlock = this.FindControl<TextBlock>("fangleft");
-        if (fangleftBlock != null)
-        {
-            fangleftBlock.Text = customSpooder.parts.fangleft;
-            if (customSpooder.colors?.fangleft != null)
-                fangleftBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.fangleft);
-        }
-
-        var mouthBlock = this.FindControl<TextBlock>("mouth");
-        if (mouthBlock != null)
-        {
-            mouthBlock.Text = customSpooder.parts.mouth;
-            if (customSpooder.colors?.mouth != null)
-                mouthBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.mouth);
-        }
-
-        var fangrightBlock = this.FindControl<TextBlock>("fangright");
-        if (fangrightBlock != null)
-        {
-            fangrightBlock.Text = customSpooder.parts.fangright;
-            if (customSpooder.colors?.fangright != null)
-                fangrightBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.fangright);
-        }
-
-        var bigeyerightBlock = this.FindControl<TextBlock>("bigeyeright");
-        if (bigeyerightBlock != null)
-        {
-            bigeyerightBlock.Text = customSpooder.parts.bigeyeright;
-            if (customSpooder.colors?.bigeyeright != null)
-                bigeyerightBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.bigeyeright);
-        }
-
-        var littleeyerightBlock = this.FindControl<TextBlock>("littleeyeright");
-        if (littleeyerightBlock != null)
-        {
-            littleeyerightBlock.Text = customSpooder.parts.littleeyeright;
-            if (customSpooder.colors?.littleeyeright != null)
-                littleeyerightBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.littleeyeright);
-        }
-
-        var bodyrightBlock = this.FindControl<TextBlock>("bodyright");
-        if (bodyrightBlock != null)
-        {
-            bodyrightBlock.Text = customSpooder.parts.bodyright;
-            if (customSpooder.colors?.bodyright != null)
-                bodyrightBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.bodyright);
-        }
-
-        var shortlegrightBlock = this.FindControl<TextBlock>("shortlegright");
-        if (shortlegrightBlock != null)
-        {
-            shortlegrightBlock.Text = customSpooder.parts.shortlegright;
-            if (customSpooder.colors?.shortlegright != null)
-                shortlegrightBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.shortlegright);
-        }
-
-        var longlegrightBlock = this.FindControl<TextBlock>("longlegright");
-        if (longlegrightBlock != null)
-        {
-            longlegrightBlock.Text = customSpooder.parts.longlegright;
-            if (customSpooder.colors?.longlegright != null)
-                longlegrightBlock.Foreground = Avalonia.Media.Brush.Parse(customSpooder.colors.longlegright);
+            var part = customSpooder.Parts[i];
+            var controlName = controlNames[i];
+            
+            var textBlock = this.FindControl<TextBlock>(controlName);
+            if (textBlock != null)
+            {
+                // Set the part string (character/text)
+                textBlock.Text = part.partString ?? "";
+                
+                // Set the part color
+                if (!string.IsNullOrEmpty(part.partColor))
+                {
+                    try
+                    {
+                        textBlock.Foreground = Avalonia.Media.Brush.Parse(part.partColor);
+                    }
+                    catch (Exception ex)
+                    {
+                        // If color parsing fails, log the error and use default white
+                        Debug.WriteLine($"Failed to parse color '{part.partColor}' for part {i}: {ex.Message}");
+                        textBlock.Foreground = Avalonia.Media.Brush.Parse("#FFFFFF");
+                    }
+                }
+                else
+                {
+                    // Default color if none specified
+                    textBlock.Foreground = Avalonia.Media.Brush.Parse("#FFFFFF");
+                }
+            }
         }
     }
 }

@@ -1,5 +1,8 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Threading;
+using MsBox.Avalonia;
+using MsBox.Avalonia.Enums;
+using Newtonsoft.Json.Linq;
 using ReactiveUI;
 using SpooderInstallerSharp.Models;
 using System;
@@ -75,11 +78,63 @@ public class MainViewModel : ReactiveObject
 
     public ObservableCollection<string> ConsoleOutput { get; } = new ObservableCollection<string>();
 
+    private async void OnUpdateAvailable(object sender, UpdateAvailableEventArgs e)
+    {
+        await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                // Check if user wants to see update prompts
+                if (!appSettings.ShowUpdatePrompts)
+                {
+                    AppendToConsoleOutput($"Update available (v{e.NewVersion}), but update prompts are disabled in settings.");
+                    return;
+                }
+
+                var messageBox = MessageBoxManager.GetMessageBoxStandard(
+                    "Spooder Update Available",
+                    $"A new version of Spooder is available!\n\n" +
+                    $"Current Version: {e.CurrentVersion}\n" +
+                    $"New Version: {e.NewVersion}\n" +
+                    $"Branch: {e.Branch}\n\n" +
+                    $"Would you like to update now?",
+                    ButtonEnum.YesNo,
+                    Icon.Question
+                );
+
+                var result = await messageBox.ShowAsync();
+
+                if (result == ButtonResult.Yes)
+                {
+                    AppendToConsoleOutput("User chose to update Spooder...");
+                    OnReturnToConsole();
+                    
+                    bool success = await Task.Run(() => _spooder.UpdateSpooder());
+                    if (success)
+                    {
+                        AppendToConsoleOutput("Spooder updated successfully!");
+                    }
+                    else
+                    {
+                        AppendToConsoleOutput("Spooder update failed.");
+                    }
+                }
+                else
+                {
+                    AppendToConsoleOutput("User declined to update Spooder.");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Error showing update dialog: {ex.Message}");
+            }
+        });
+    }
 
     public MainViewModel()
     {
         Debug.WriteLine($"MainViewModel created");
-        appSettings = new AppSettings();
+        appSettings = SettingsManager.LoadSettings();
         
         _spooder = new SpooderManager(AppendToConsoleOutput);
 
@@ -100,11 +155,21 @@ public class MainViewModel : ReactiveObject
         _spooder.MessageReceived += (sender, message) =>
         {
             // Handle the IPC message from the tsx app
-            Debug.WriteLine($"Received IPC message: {message}");
+            
+            JObject messageJson = JObject.Parse(message);
+            Debug.WriteLine($"Received IPC message: {message} {messageJson["action"]?.ToString()}");
+            if (messageJson["action"]?.ToString() == "restart")
+            {
+                Debug.WriteLine("Restart action received from IPC message");
+                Dispatcher.UIThread.Post(async () => await RestartSpooderTask());
+            }
         };
+
+        _spooder.UpdateAvailable += OnUpdateAvailable;
 
         InstallSpooder = ReactiveCommand.CreateFromTask(InstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderNotInstalled));
         UninstallSpooder = ReactiveCommand.CreateFromTask(UninstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderInstalled));
+        CleanSpooder = ReactiveCommand.CreateFromTask(CleanSpooderTask, this.WhenAnyValue(x => x.IsSpooderInstalled));
         StartSpooder = ReactiveCommand.CreateFromTask(StartSpooderTask, this.WhenAnyValue(x => x.IsSpooderNotRunning));
         RestartSpooder = ReactiveCommand.CreateFromTask(RestartSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
         StopSpooder = ReactiveCommand.CreateFromTask(StopSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
@@ -138,6 +203,12 @@ public class MainViewModel : ReactiveObject
         OnReturnToConsole();
         await Task.Run(() => _spooder.UninstallSpooder());
         IsSpooderInstalled = false;
+    }
+
+    private async Task CleanSpooderTask()
+    {
+        OnReturnToConsole();
+        await Task.Run(() => _spooder.CleanSpooder());
     }
 
     private async Task StartSpooderTask()

@@ -31,8 +31,8 @@
   </ItemGroup>
 
 	<ItemGroup>
-  <!-- Keep all nodejs files external to the single-file bundle -->
-  <Content Include="nodejs\**\*" CopyToPublishDirectory="Always" />
+  <!-- Copy nodejs files to output directory for both debug and publish -->
+  <Content Include="nodejs\**\*" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
 </ItemGroup>
 
 	<ItemGroup>
@@ -41,10 +41,12 @@
 	  </AvaloniaResource>
 	</ItemGroup>
 
-<!-- Ensure .exe files are never bundled -->
+<!-- Ensure .exe files are never bundled during publish -->
 <ItemGroup>
   <ExcludeFromSingleFile Include="nodejs\node.exe" />
 </ItemGroup>
+
+<!-- Copy node.exe after publish (for single-file deployment compatibility) -->
 <Target Name="CopyNodeExeAfterPublish" AfterTargets="Publish">
   <ItemGroup>
     <NodeExe Include="$(MSBuildProjectDirectory)\nodejs\node.exe" />

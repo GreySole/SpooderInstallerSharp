@@ -21,10 +21,12 @@ public partial class App : Application
 
         AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
         {
+            _mainViewModel?.OnCloseAsync();
             File.AppendAllText("fatal.log", $"Unhandled: {e.ExceptionObject}\n");
         };
         TaskScheduler.UnobservedTaskException += (sender, e) =>
         {
+            _mainViewModel?.OnCloseAsync();
             File.AppendAllText("fatal.log", $"Unobserved: {e.Exception}\n");
             e.SetObserved();
         };

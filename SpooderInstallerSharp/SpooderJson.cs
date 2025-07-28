@@ -30,24 +30,12 @@ namespace SpooderInstallerSharp.JsonTypes
 
     public class CustomSpooder
     {
-        public CustomSpooderParts parts { get; set; }
-        public CustomSpooderParts colors { get; set; }
+        public List<SpooderPart> Parts { get; set; } = new List<SpooderPart>();
     }
 
-    public class CustomSpooderParts
+    public class SpooderPart
     {
-        public string bigeyeleft { get; set; }
-        public string bigeyeright { get; set; }
-        public string littleeyeleft { get; set; }
-        public string littleeyeright { get; set; }
-        public string fangleft { get; set; }
-        public string fangright { get; set; }
-        public string mouth { get; set; }
-        public string bodyleft { get; set; }
-        public string bodyright { get; set; }
-        public string shortlegleft { get; set; }
-        public string shortlegright { get; set; }
-        public string longlegleft { get; set; }
-        public string longlegright { get; set; }
+        public string partString { get; set; }
+        public string partColor { get; set; }
     }
 }

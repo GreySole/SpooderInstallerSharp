@@ -21,10 +21,12 @@ namespace SpooderInstallerSharp.ViewModels
         public event EventHandler SpooderInstallStart;
         public event EventHandler SpooderInstallComplete;
         public event EventHandler SpooderUninstallComplete;
+        public event EventHandler SpooderCleanComplete;
         public event EventHandler SpooderRunStart;
         public event EventHandler SpooderRunStop;
         public event EventHandler DefaultDirectorySetNeeded;
         public event EventHandler SpooderThemeChanged;
+        public event EventHandler<UpdateAvailableEventArgs> UpdateAvailable;
 
         private IPC _ipc;
 
@@ -57,6 +59,11 @@ namespace SpooderInstallerSharp.ViewModels
             SpooderUninstallComplete?.Invoke(this, EventArgs.Empty);
         }
 
+        protected virtual void OnSpooderCleaned()
+        {
+            SpooderCleanComplete?.Invoke(this, EventArgs.Empty);
+        }
+
         protected virtual void OnSpooderRunStart()
         {
             SpooderRunStart?.Invoke(this, EventArgs.Empty);
@@ -77,11 +84,17 @@ namespace SpooderInstallerSharp.ViewModels
             SpooderThemeChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        protected virtual void OnUpdateAvailable(string currentVersion, string newVersion, string branch)
+        {
+            UpdateAvailable?.Invoke(this, new UpdateAvailableEventArgs(currentVersion, newVersion, branch));
+        }
+
         private readonly Action<string> AppendToConsoleOutput;
         public Process spooderProcess;
         static string exeDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
         public string nodePath = Path.Combine(exeDir, "nodejs", "node.exe");
         public string npmPath = Path.Combine(exeDir, "nodejs", "npm.cmd");
+        
         public string mingwPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "mingw");
         //public string defaultLocalPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
         public SpooderInfo spooderInfo { get; set; }
@@ -119,11 +132,15 @@ namespace SpooderInstallerSharp.ViewModels
                 {
                     spooderInfo.version = installedVersion.ToString();
 
-                    CheckRemoteVersion(appSettings.SelectedBranch ?? "main", installedVersion);
+                    // Only check for updates if auto-check is enabled
+                    if (appSettings.AutoCheckUpdates)
+                    {
+                        CheckRemoteVersion(appSettings.SelectedBranch, installedVersion);
+                    }
 
                     if (installedVersion < new System.Version(0, 5, 0))
                     {
-                        AppendToConsoleOutput($"Spooder version {installedVersion} is outdated. Please update to the latest version.");
+                        AppendToConsoleOutput($"Don't use the legacy {installedVersion} version of Spooder. Switch to one of the 0.5.x branches!");
                     }
                     else
                     {
@@ -149,39 +166,61 @@ namespace SpooderInstallerSharp.ViewModels
                         spooderInfo.themeVariables.saturation = (float)(satToken != null ? satToken.Value<float>() : 0.0);
 
                         spooderInfo.customSpooder = new CustomSpooder();
-                        var spooderParts = new CustomSpooderParts();
-                        spooderParts.longlegleft = spooderTheme["spooderpet"]?["parts"]?["longlegleft"]?.ToString() ?? "/╲";
-                        spooderParts.shortlegleft = spooderTheme["spooderpet"]?["parts"]?["shortlegleft"]?.ToString() ?? "/\\";
-                        spooderParts.bodyleft = spooderTheme["spooderpet"]?["parts"]?["bodyleft"]?.ToString() ?? "(";
-                        spooderParts.littleeyeleft = spooderTheme["spooderpet"]?["parts"]?["littleeyeleft"]?.ToString() ?? "º";
-                        spooderParts.bigeyeleft = spooderTheme["spooderpet"]?["parts"]?["bigeyeleft"]?.ToString() ?? "o";
-                        spooderParts.fangleft = spooderTheme["spooderpet"]?["parts"]?["fangleft"]?.ToString() ?? " ";
-                        spooderParts.mouth = spooderTheme["spooderpet"]?["parts"]?["mouth"]?.ToString() ?? "ω";
-                        spooderParts.fangright = spooderTheme["spooderpet"]?["parts"]?["fangright"]?.ToString() ?? " ";
-                        spooderParts.bigeyeright = spooderTheme["spooderpet"]?["parts"]?["bigeyeright"]?.ToString() ?? "o";
-                        spooderParts.littleeyeright = spooderTheme["spooderpet"]?["parts"]?["littleeyeright"]?.ToString() ?? "º";
-                        spooderParts.bodyright = spooderTheme["spooderpet"]?["parts"]?["bodyright"]?.ToString() ?? ")";
-                        spooderParts.shortlegright = spooderTheme["spooderpet"]?["parts"]?["shortlegright"]?.ToString() ?? "/\\";
-                        spooderParts.longlegright = spooderTheme["spooderpet"]?["parts"]?["longlegright"]?.ToString() ?? "╱\\";
-
-                        var spooderColors = new CustomSpooderParts();
-                        spooderColors.longlegleft = spooderTheme["spooderpet"]?["colors"]?["longlegleft"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.shortlegleft = spooderTheme["spooderpet"]?["colors"]?["shortlegleft"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.bodyleft = spooderTheme["spooderpet"]?["colors"]?["bodyleft"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.littleeyeleft = spooderTheme["spooderpet"]?["colors"]?["littleeyeleft"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.bigeyeleft = spooderTheme["spooderpet"]?["colors"]?["bigeyeleft"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.fangleft = spooderTheme["spooderpet"]?["colors"]?["fangleft"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.mouth = spooderTheme["spooderpet"]?["colors"]?["mouth"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.fangright = spooderTheme["spooderpet"]?["colors"]?["fangright"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.bigeyeright = spooderTheme["spooderpet"]?["colors"]?["bigeyeright"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.littleeyeright = spooderTheme["spooderpet"]?["colors"]?["littleeyeright"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.bodyright = spooderTheme["spooderpet"]?["colors"]?["bodyright"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.shortlegright = spooderTheme["spooderpet"]?["colors"]?["shortlegright"]?.ToString() ?? "#FFFFFF";
-                        spooderColors.longlegright = spooderTheme["spooderpet"]?["colors"]?["longlegright"]?.ToString() ?? "#FFFFFF";
-
-
-                        spooderInfo.customSpooder.parts = spooderParts;
-                        spooderInfo.customSpooder.colors = spooderColors;
+                        
+                        // Check if spooderpet exists and is an array
+                        var spooderPetToken = spooderTheme["spooderpet"];
+                        if (spooderPetToken != null && spooderPetToken.Type == JTokenType.Array)
+                        {
+                            AppendToConsoleOutput("Spooder pet found, loading custom parts...");
+                            var spooderPetArray = (JArray)spooderPetToken;
+                            
+                            // Iterate through the array of spooder part objects
+                            foreach (var partToken in spooderPetArray)
+                            {
+                                if (partToken.Type == JTokenType.Object)
+                                {
+                                    var partObject = (JObject)partToken;
+                                    var partString = partObject["partString"]?.ToString() ?? "";
+                                    var partColor = partObject["partColor"]?.ToString() ?? "#FFFFFF";
+                                    
+                                    spooderInfo.customSpooder.Parts.Add(new SpooderPart
+                                    {
+                                        partString = partString,
+                                        partColor = partColor
+                                    });
+                                }
+                            }
+                        }
+                        else
+                        {
+                            AppendToConsoleOutput("Spooder pet not found or not an array, using default parts.");
+                            // Fallback: If spooderpet is not an array, create default parts
+                            var defaultParts = new[]
+                            {
+                                new { partString = "/╲", partColor = "#FFFFFF" },
+                                new { partString = "/\\", partColor = "#FFFFFF" },
+                                new { partString = "(", partColor = "#FFFFFF" },
+                                new { partString = "º", partColor = "#FFFFFF" },
+                                new { partString = "o", partColor = "#FFFFFF" },
+                                new { partString = " ", partColor = "#FFFFFF" },
+                                new { partString = "ω", partColor = "#FFFFFF" },
+                                new { partString = " ", partColor = "#FFFFFF" },
+                                new { partString = "o", partColor = "#FFFFFF" },
+                                new { partString = "º", partColor = "#FFFFFF" },
+                                new { partString = ")", partColor = "#FFFFFF" },
+                                new { partString = "/\\", partColor = "#FFFFFF" },
+                                new { partString = "╱\\", partColor = "#FFFFFF" }
+                            };
+                            
+                            foreach (var defaultPart in defaultParts)
+                            {
+                                spooderInfo.customSpooder.Parts.Add(new SpooderPart
+                                {
+                                    partString = defaultPart.partString,
+                                    partColor = defaultPart.partColor
+                                });
+                            }
+                        }
 
 
                         OnSpooderThemeChanged();
@@ -225,6 +264,7 @@ namespace SpooderInstallerSharp.ViewModels
                             if (remoteVersion > installedVersion)
                             {
                                 AppendToConsoleOutput($"Update available: Remote version {remoteVersion} is newer than installed version {installedVersion}");
+                                OnUpdateAvailable(installedVersion.ToString(), remoteVersion.ToString(), branch);
                             }
                             else if (remoteVersion == installedVersion)
                             {
@@ -622,6 +662,58 @@ namespace SpooderInstallerSharp.ViewModels
             catch (Exception ex)
             {
                 AppendToConsoleOutput($"Error uninstalling Spooder: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> CleanSpooder()
+        {
+            try
+            {
+                var appSettings = SettingsManager.LoadSettings();
+                // First, stop any running Spooder process
+                if (spooderProcess != null && !spooderProcess.HasExited)
+                {
+                    AppendToConsoleOutput("Stopping Spooder process before cleaning...");
+                    StopSpooder();
+                }
+
+                var userDataPath = Path.Combine(appSettings.SpooderInstallationPath, "user");
+
+                if (Directory.Exists(userDataPath))
+                {
+                    AppendToConsoleOutput($"Removing Spooder User data from {appSettings.SpooderInstallationPath}...");
+
+                    // Wait a moment to ensure all file handles are closed
+                    await Task.Delay(1000);
+
+                    
+
+                    // Try smart deletion with permission handling
+                    bool success = await SmartDeleteDirectory(userDataPath);
+
+                    if (success)
+                    {
+                        spooderInfo = null;
+                        OnSpooderCleaned();
+                        AppendToConsoleOutput("Spooder has been successfully cleaned.");
+                        return true;
+                    }
+                    else
+                    {
+                        AppendToConsoleOutput("Failed to clean Spooder entirely.");
+                        return false;
+                    }
+                }
+                else
+                {
+                    AppendToConsoleOutput("Spooder installation directory not found. Nothing to clean.");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToConsoleOutput($"Error cleaning Spooder: {ex.Message}");
                 return false;
             }
         }
