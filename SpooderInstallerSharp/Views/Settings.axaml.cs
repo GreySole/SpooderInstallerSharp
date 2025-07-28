@@ -9,6 +9,7 @@ using SpooderInstallerSharp.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -36,8 +37,9 @@ public partial class Settings : UserControl
         var installationDirTextBox = this.FindControl<TextBox>("InstallationDirTextBox");
         if (installationDirTextBox != null)
         {
+            var appSettings = SettingsManager.LoadSettings();
             // Load from settings or set a default path
-            installationDirTextBox.Text = @"C:\Program Files\Spooder"; // Replace with your actual default or saved path
+            installationDirTextBox.Text = appSettings.SpooderInstallationPath; // Replace with your actual default or saved path
         }
     }
 
