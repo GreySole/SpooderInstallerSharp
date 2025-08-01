@@ -21,13 +21,14 @@ public class MainViewModel : ReactiveObject
 
     public AppSettings appSettings;
 
-    public event EventHandler ReturnToConsole;
+    public event EventHandler? ReturnToConsole;
     protected virtual void OnReturnToConsole()
     {
         ReturnToConsole?.Invoke(this, EventArgs.Empty);
     }
-    private StackPanel _consoleOutputPanel;
-    public StackPanel ConsoleOutputPanel
+    
+    private StackPanel? _consoleOutputPanel;
+    public StackPanel? ConsoleOutputPanel
     {
         get => _consoleOutputPanel;
         set
@@ -44,7 +45,6 @@ public class MainViewModel : ReactiveObject
     public ICommand RestartSpooder { get; }
     public ICommand StopSpooder { get; }
     public ICommand CleanSpooder { get; }
-    public ICommand UpdateSpooder { get; }
     public ICommand OpenSpooder { get; }
     public ICommand BrowseSpooder { get; }
     public ICommand ShowWindowCommand { get; }
@@ -85,7 +85,7 @@ public class MainViewModel : ReactiveObject
 
     public ObservableCollection<string> ConsoleOutput { get; } = new ObservableCollection<string>();
 
-    private async void OnUpdateAvailable(object sender, UpdateAvailableEventArgs e)
+    private async Task OnUpdateAvailableAsync(object? sender, UpdateAvailableEventArgs e)
     {
         await Dispatcher.UIThread.InvokeAsync(async () =>
         {
@@ -109,14 +109,14 @@ public class MainViewModel : ReactiveObject
                     Icon.Question
                 );
 
-                var result = await messageBox.ShowAsync();
+                var result = await messageBox.ShowAsync().ConfigureAwait(false);
 
                 if (result == ButtonResult.Yes)
                 {
                     AppendToConsoleOutput("User chose to update Spooder...");
                     OnReturnToConsole();
                     
-                    bool success = await Task.Run(() => _spooder.UpdateSpooder());
+                    bool success = await Task.Run(() => _spooder.UpdateSpooder()).ConfigureAwait(false);
                     if (success)
                     {
                         AppendToConsoleOutput("Spooder updated successfully!");
@@ -135,7 +135,7 @@ public class MainViewModel : ReactiveObject
             {
                 AppendToConsoleOutput($"Error showing update dialog: {ex.Message}");
             }
-        });
+        }).ConfigureAwait(false);
     }
 
     public MainViewModel()
@@ -162,17 +162,26 @@ public class MainViewModel : ReactiveObject
         _spooder.MessageReceived += (sender, message) =>
         {
             // Handle the IPC message from the tsx app
-            
-            JObject messageJson = JObject.Parse(message);
-            Debug.WriteLine($"Received IPC message: {message} {messageJson["action"]?.ToString()}");
-            if (messageJson["action"]?.ToString() == "restart")
+            try
             {
-                Debug.WriteLine("Restart action received from IPC message");
-                Dispatcher.UIThread.Post(async () => await RestartSpooderTask());
+                JObject messageJson = JObject.Parse(message);
+                Debug.WriteLine($"Received IPC message: {message} {messageJson["action"]?.ToString()}");
+                if (messageJson["action"]?.ToString() == "restart")
+                {
+                    Debug.WriteLine("Restart action received from IPC message");
+                    Dispatcher.UIThread.Post(async () => await RestartSpooderTask().ConfigureAwait(false));
+                }else if (messageJson["action"]?.ToString() == "refresh_info")
+                {
+                    Dispatcher.UIThread.Post(() => _spooder.refreshSpooderInfo());
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error parsing IPC message: {ex.Message}");
             }
         };
 
-        _spooder.UpdateAvailable += OnUpdateAvailable;
+        _spooder.UpdateAvailable += async (sender, e) => await OnUpdateAvailableAsync(sender, e).ConfigureAwait(false);
 
         InstallSpooder = ReactiveCommand.CreateFromTask(InstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderNotInstalled));
         UninstallSpooder = ReactiveCommand.CreateFromTask(UninstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderInstalled));
@@ -200,11 +209,11 @@ public class MainViewModel : ReactiveObject
     {
         if (IsSpooderRunning)
         {
-            await StopSpooderTask();
+            await StopSpooderTask().ConfigureAwait(false);
         }
         else if (IsSpooderInstalled)
         {
-            await StartSpooderTask();
+            await StartSpooderTask().ConfigureAwait(false);
         }
     }
 
@@ -235,39 +244,44 @@ public class MainViewModel : ReactiveObject
     private async Task InstallSpooderTask()
     {
         OnReturnToConsole();
-        IsSpooderInstalled = await Task.Run(() => _spooder.InstallSpooder());
+        IsSpooderInstalled = await Task.Run(() => _spooder.InstallSpooder()).ConfigureAwait(false);
     }
 
     private async Task UninstallSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.UninstallSpooder());
+        await Task.Run(() => _spooder.UninstallSpooder()).ConfigureAwait(false);
         IsSpooderInstalled = false;
     }
 
     private async Task CleanSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.CleanSpooder());
+        await Task.Run(() => _spooder.CleanSpooder()).ConfigureAwait(false);
     }
 
     private async Task StartSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.StartSpooder());
+        await Task.Run(() => _spooder.StartSpooder()).ConfigureAwait(false);
+        var appSettings = SettingsManager.LoadSettings();
+        if (appSettings.OpenSpooderOnStartup)
+        {
+            await OpenSpooderTask();
+        }
     }
 
     private async Task RestartSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.StopSpooder());
-        await Task.Run(() => _spooder.StartSpooder());
+        await Task.Run(() => _spooder.StopSpooder()).ConfigureAwait(false);
+        await Task.Run(() => _spooder.StartSpooder()).ConfigureAwait(false);
     }
 
     private async Task StopSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.StopSpooder());
+        await Task.Run(() => _spooder.StopSpooder()).ConfigureAwait(false);
     }
 
     private async Task OpenSpooderTask()
@@ -289,6 +303,8 @@ public class MainViewModel : ReactiveObject
         {
             AppendToConsoleOutput($"Error opening browser: {ex.Message}");
         }
+        
+        await Task.CompletedTask;
     }
 
     private async Task BrowseSpooderTask()
@@ -303,7 +319,7 @@ public class MainViewModel : ReactiveObject
                 return;
             }
 
-            ProcessStartInfo processStartInfo = GetPlatformSpecificFileManagerProcess(installPath);
+            ProcessStartInfo? processStartInfo = GetPlatformSpecificFileManagerProcess(installPath);
 
             if (processStartInfo != null)
             {
@@ -319,9 +335,11 @@ public class MainViewModel : ReactiveObject
         {
             AppendToConsoleOutput($"Error opening folder: {ex.Message}");
         }
+        
+        await Task.CompletedTask;
     }
 
-    private ProcessStartInfo GetPlatformSpecificFileManagerProcess(string path)
+    private ProcessStartInfo? GetPlatformSpecificFileManagerProcess(string path)
     {
         if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
         {
@@ -400,8 +418,12 @@ public class MainViewModel : ReactiveObject
 
             using (var process = Process.Start(processStartInfo))
             {
-                process.WaitForExit();
-                return process.ExitCode == 0;
+                if (process != null)
+                {
+                    process.WaitForExit();
+                    return process.ExitCode == 0;
+                }
+                return false;
             }
         }
         catch

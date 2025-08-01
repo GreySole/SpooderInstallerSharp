@@ -8,16 +8,16 @@ namespace SpooderInstallerSharp.JsonTypes
 {
     public class SpooderInfo
     {
-        public string name { get; set; }
-        public string version { get; set; }
-        public CustomSpooder customSpooder { get; set; }
-        public SpooderTheme themeVariables { get; set; }
+        public string? name { get; set; }
+        public string? version { get; set; }
+        public CustomSpooder? customSpooder { get; set; }
+        public SpooderTheme? themeVariables { get; set; }
     }
 
     public class PackageJson
     {
-        public string name { get; set; }
-        public string version { get; set; }
+        public string? name { get; set; }
+        public string? version { get; set; }
         // Add other properties as needed
     }
 
@@ -25,7 +25,7 @@ namespace SpooderInstallerSharp.JsonTypes
     {
         public float hue { get; set; }
         public float saturation { get; set; }
-        public Boolean isDarkTheme { get; set; }
+        public bool isDarkTheme { get; set; }
     }
 
     public class CustomSpooder
@@ -35,7 +35,7 @@ namespace SpooderInstallerSharp.JsonTypes
 
     public class SpooderPart
     {
-        public string partString { get; set; }
-        public string partColor { get; set; }
+        public string partString { get; set; } = string.Empty;
+        public string partColor { get; set; } = string.Empty;
     }
 }

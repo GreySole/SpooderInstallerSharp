@@ -1,20 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SpooderInstallerSharp.ViewModels
 {
-    internal class IPC
+    internal class IPC : IDisposable
     {
-        private Process _process;
+        private Process? _process;
         private readonly Action<string> _appendToConsoleOutput;
-        private NamedPipeServerStream _pipeServer;
-        private string _pipeName;
+        private NamedPipeServerStream? _pipeServer;
+        private string? _pipeName;
         private bool _isDisposed = false;
 
         public IPC(Action<string> appendToConsoleOutput)
@@ -23,7 +20,7 @@ namespace SpooderInstallerSharp.ViewModels
         }
 
         // Add event for receiving IPC messages
-        public event EventHandler<string> MessageReceived;
+        public event EventHandler<string>? MessageReceived;
 
         protected virtual void OnMessageReceived(string message)
         {
@@ -49,19 +46,22 @@ namespace SpooderInstallerSharp.ViewModels
             _isDisposed = false;
 
             // Start listening for pipe connections
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
-                    await _pipeServer.WaitForConnectionAsync();
-                    _appendToConsoleOutput("IPC pipe connected successfully");
-
-                    using (var reader = new StreamReader(_pipeServer))
+                    if (_pipeServer != null)
                     {
-                        string line;
-                        while ((line = await reader.ReadLineAsync()) != null && !_isDisposed)
+                        await _pipeServer.WaitForConnectionAsync().ConfigureAwait(false);
+                        _appendToConsoleOutput("IPC pipe connected successfully");
+
+                        using (var reader = new StreamReader(_pipeServer))
                         {
-                            OnMessageReceived(line);
+                            string? line;
+                            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null && !_isDisposed)
+                            {
+                                OnMessageReceived(line);
+                            }
                         }
                     }
                 }
@@ -75,28 +75,31 @@ namespace SpooderInstallerSharp.ViewModels
         private void SetupStdoutReading()
         {
             // Start a background task to read stdout for regular output
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
-                    using (var reader = new StreamReader(_process.StandardOutput.BaseStream))
+                    if (_process?.StandardOutput != null)
                     {
-                        string line;
-                        while ((line = await reader.ReadLineAsync()) != null && !_isDisposed)
+                        using (var reader = new StreamReader(_process.StandardOutput.BaseStream))
                         {
-                            // Check if this is a structured IPC message via stdout
-                            if (line.StartsWith("IPC:"))
+                            string? line;
+                            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null && !_isDisposed)
                             {
-                                OnMessageReceived(line.Substring(4)); // Remove "IPC:" prefix
-                            }
-                            else if (IsJsonMessage(line))
-                            {
-                                OnMessageReceived(line);
-                            }
-                            else
-                            {
-                                // Regular output
-                                _appendToConsoleOutput(line);
+                                // Check if this is a structured IPC message via stdout
+                                if (line.StartsWith("IPC:"))
+                                {
+                                    OnMessageReceived(line.Substring(4)); // Remove "IPC:" prefix
+                                }
+                                else if (IsJsonMessage(line))
+                                {
+                                    OnMessageReceived(line);
+                                }
+                                else
+                                {
+                                    // Regular output
+                                    _appendToConsoleOutput(line);
+                                }
                             }
                         }
                     }
@@ -108,7 +111,7 @@ namespace SpooderInstallerSharp.ViewModels
             });
         }
 
-        private bool IsJsonMessage(string line)
+        private static bool IsJsonMessage(string line)
         {
             try
             {
@@ -151,27 +154,41 @@ namespace SpooderInstallerSharp.ViewModels
             }
         }
 
-        public string GetPipeName()
+        public string? GetPipeName()
         {
             return _pipeName;
         }
 
         public void Cleanup()
         {
-            _isDisposed = true;
+            Dispose();
+        }
 
-            try
-            {
-                _pipeServer?.Close();
-                _pipeServer?.Dispose();
-            }
-            catch (Exception ex)
-            {
-                _appendToConsoleOutput($"Error cleaning up IPC pipe: {ex.Message}");
-            }
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
 
-            _pipeServer = null;
-            _process = null;
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_isDisposed && disposing)
+            {
+                _isDisposed = true;
+
+                try
+                {
+                    _pipeServer?.Close();
+                    _pipeServer?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _appendToConsoleOutput($"Error cleaning up IPC pipe: {ex.Message}");
+                }
+
+                _pipeServer = null;
+                _process = null;
+            }
         }
     }
 }

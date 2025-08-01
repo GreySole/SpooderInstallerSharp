@@ -18,7 +18,7 @@ namespace SpooderInstallerSharp.Views;
 public partial class Settings : UserControl
 {
 
-    public event EventHandler ReturnToConsole;
+    public event EventHandler? ReturnToConsole;
 
     protected virtual void OnReturnToConsole()
     {
@@ -28,8 +28,26 @@ public partial class Settings : UserControl
     public Settings()
     {
         InitializeComponent();
-        PopulateBranchSelect();
+        _ = PopulateBranchSelectAsync();
         LoadInstallationDirectory();
+        LoadPreferences();
+    }
+
+    private void LoadPreferences()
+    {
+        var appSettings = SettingsManager.LoadSettings();
+        var autoStartSpooderCheckBox = this.FindControl<CheckBox>("AutoStartSpooderCheckBox");
+        var openSpooderOnStartupCheckBox = this.FindControl<CheckBox>("AutoOpenSpooderCheckbox");
+
+        if(autoStartSpooderCheckBox != null)
+        {
+            autoStartSpooderCheckBox.IsChecked = appSettings.StartSpooderOnStartup;
+        }
+
+        if(openSpooderOnStartupCheckBox != null)
+        {
+            openSpooderOnStartupCheckBox.IsChecked = appSettings.OpenSpooderOnStartup;
+        }
     }
 
     private void LoadInstallationDirectory()
@@ -43,7 +61,7 @@ public partial class Settings : UserControl
         }
     }
 
-    private async void BrowseFolderButton_Click(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void BrowseFolderButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.StorageProvider != null)
@@ -52,7 +70,7 @@ public partial class Settings : UserControl
             {
                 Title = "Select Installation Directory",
                 AllowMultiple = false
-            });
+            }).ConfigureAwait(false);
 
             if (folders.Count > 0)
             {
@@ -75,7 +93,7 @@ public partial class Settings : UserControl
         SettingsManager.SaveSettings(appSettings);
     }
 
-    private async void PopulateBranchSelect()
+    private async Task PopulateBranchSelectAsync()
     {
         var branchSelect = this.FindControl<ComboBox>("BranchSelect");
         var items = await Branch.FetchBranchNamesAsync();
@@ -103,29 +121,37 @@ public partial class Settings : UserControl
         }
     }
 
-    private void BranchSelect_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void BranchSelect_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         var branchSelect = sender as ComboBox;
-        if (branchSelect != null && branchSelect.SelectedItem != null)
+        if (branchSelect?.SelectedItem != null)
         {
-            string selectedBranch = branchSelect.SelectedItem.ToString();
-            SaveSelectedBranch(selectedBranch);
+            string? selectedBranch = branchSelect.SelectedItem.ToString();
+            if (!string.IsNullOrEmpty(selectedBranch))
+            {
+                _ = SaveSelectedBranchAsync(selectedBranch);
+            }
         }
     }
 
-    private async Task SaveSelectedBranch(string branch)
+    private async Task SaveSelectedBranchAsync(string branch)
     {
-        var mainViewModel = (MainViewModel)DataContext;
+        if (DataContext is not MainViewModel mainViewModel)
+        {
+            Debug.WriteLine("DataContext is not MainViewModel");
+            return;
+        }
+
         if (mainViewModel.IsSpooderInstalled)
         {
-            var result = await MessageBoxManager.GetMessageBoxStandard("Switch Branch", $"Switching to {branch} will reinstall Spooder while preserving your data. Plugin dependencies may need to be reinstalled. Continue?", MsBox.Avalonia.Enums.ButtonEnum.YesNo).ShowAsync();
+            var result = await MessageBoxManager.GetMessageBoxStandard("Switch Branch", $"Switching to {branch} will reinstall Spooder while preserving your data. Plugin dependencies may need to be reinstalled. Continue?", MsBox.Avalonia.Enums.ButtonEnum.YesNo).ShowAsync().ConfigureAwait(false);
             if (result == ButtonResult.Yes)
             {
                 var appSettings = SettingsManager.LoadSettings();
                 appSettings.SelectedBranch = branch;
                 SettingsManager.SaveSettings(appSettings);
                 OnReturnToConsole();
-                mainViewModel._spooder.UpdateSpooder(branch);
+                _ = Task.Run(() => mainViewModel._spooder.UpdateSpooder(branch));
             }
         }
         else

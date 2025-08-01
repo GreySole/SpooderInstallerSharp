@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
-using Color = Avalonia.Media.Color;
 
 namespace SpooderInstallerSharp.Views;
 
@@ -42,7 +41,7 @@ public partial class ConsoleOutput : UserControl
         {
             foreach (var newItem in e.NewItems)
             {
-                Dispatcher.UIThread.InvokeAsync(() => AddConsoleItem(newItem?.ToString()));
+                _ = Dispatcher.UIThread.InvokeAsync(() => AddConsoleItem(newItem?.ToString()));
             }
         }
     }
@@ -71,7 +70,7 @@ public partial class ConsoleOutput : UserControl
         _consoleOutputPanel.Children.Add(textBlock);
     }
 
-    private (string processedText, List<string> matchedKeys) ProcessLogText(string originalText)
+    private static (string processedText, List<string> matchedKeys) ProcessLogText(string originalText)
     {
         string processedText = originalText;
         var matchedKeys = new List<string>();
@@ -79,9 +78,9 @@ public partial class ConsoleOutput : UserControl
         foreach (var kvp in ColorUtil.LogEffects)
         {
             string key = kvp.Key;
-            string value = kvp.Value.ToString();
+            string? value = kvp.Value?.ToString();
 
-            if (processedText.Contains(value))
+            if (!string.IsNullOrEmpty(value) && processedText.Contains(value))
             {
                 matchedKeys.Add(key);
                 processedText = processedText.Replace(value, string.Empty);
@@ -91,10 +90,17 @@ public partial class ConsoleOutput : UserControl
         return (processedText, matchedKeys);
     }
 
-    private void OnGoToSettingsClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnGoToSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var settingsView = new Settings();
         var contentFrame = this.FindControl<ContentControl>("ContentFrame");
-        contentFrame.Content = settingsView;
+        if (contentFrame != null)
+        {
+            contentFrame.Content = settingsView;
+        }
+        else
+        {
+            Debug.WriteLine("ContentFrame not found!");
+        }
     }
 }

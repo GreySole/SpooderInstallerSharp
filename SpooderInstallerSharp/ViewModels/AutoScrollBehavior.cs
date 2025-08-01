@@ -7,7 +7,7 @@ namespace SpooderInstallerSharp.Behaviors
 {
     public class AutoScrollBehavior : Behavior<ScrollViewer>
     {
-        private StackPanel _stackPanel;
+        private StackPanel? _stackPanel;
 
         protected override void OnAttached()
         {
@@ -30,7 +30,7 @@ namespace SpooderInstallerSharp.Behaviors
             base.OnDetaching();
         }
 
-        private void OnScrollViewerLoaded(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+        private void OnScrollViewerLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             AttachToStackPanel();
         }
@@ -53,7 +53,7 @@ namespace SpooderInstallerSharp.Behaviors
             }
         }
 
-        private void OnScrollViewerContentChanged(object sender, AvaloniaPropertyChangedEventArgs e)
+        private void OnScrollViewerContentChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
         {
             if (e.Property == ScrollViewer.ContentProperty)
             {
@@ -62,12 +62,12 @@ namespace SpooderInstallerSharp.Behaviors
             }
         }
 
-        private void OnStackPanelChildrenChanged(object sender, NotifyCollectionChangedEventArgs e)
+        private void OnStackPanelChildrenChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (AssociatedObject != null && e.Action == NotifyCollectionChangedAction.Add)
             {
                 // Use Dispatcher to ensure UI updates are complete before scrolling
-                Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                _ = Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     AssociatedObject.ScrollToEnd();
                 }, Avalonia.Threading.DispatcherPriority.Background);

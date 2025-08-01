@@ -11,10 +11,11 @@ namespace SpooderInstallerSharp.Views;
 
 public partial class MainWindow : UserControl
 {
-    private ConsoleOutput consoleOutput = new ConsoleOutput();
-    private Settings settingsView = new Settings();
+    private readonly ConsoleOutput consoleOutput = new ConsoleOutput();
+    private readonly Settings settingsView = new Settings();
     private bool settingsOpened = false;
-    private bool _initialViewSet = false; // Add this flag
+    private bool _initialViewSet = false;
+    private const double NARROW_WIDTH_THRESHOLD = 600;
 
     public MainWindow()
     {
@@ -35,6 +36,41 @@ public partial class MainWindow : UserControl
             Debug.WriteLine("Will show main view.");
             settingsOpened = false; // Set flag but don't show view yet
         }
+
+        if (settingsButton != null)
+        {
+            settingsButton.SetCurrentValue(ToggleButton.IsCheckedProperty, settingsOpened);
+        }
+    }
+
+    private void OnSizeChanged(object? sender, Avalonia.Controls.SizeChangedEventArgs e)
+    {
+        UpdateUniformGridLayout(e.NewSize.Width);
+    }
+
+    private void UpdateUniformGridLayout(double width)
+    {
+        var uniformGrid = this.FindControl<UniformGrid>("MainUniformGrid");
+        if (uniformGrid == null) return;
+
+        if (width < NARROW_WIDTH_THRESHOLD)
+        {
+            // Switch to rows for narrow windows
+            uniformGrid.Rows = 3;
+            uniformGrid.Columns = 0; // Setting to 0 disables column constraint
+
+            // Optionally adjust alignment for vertical layout
+            uniformGrid.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+        }
+        else
+        {
+            // Use columns for wide windows (original layout)
+            uniformGrid.Columns = 3;
+            uniformGrid.Rows = 0; // Setting to 0 disables row constraint
+
+            // Restore original alignment
+            uniformGrid.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        }
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -43,13 +79,13 @@ public partial class MainWindow : UserControl
 
         if (DataContext is MainViewModel viewModel)
         {
-            viewModel.ReturnToConsole += (s, e) =>
+            viewModel.ReturnToConsole += (s, eventArgs) =>
             {
                 Debug.WriteLine("Returning to console from settings view.");
                 ShowMainView();
             };
 
-            viewModel._spooder.SpooderThemeChanged += (s, e) =>
+            viewModel._spooder.SpooderThemeChanged += (s, eventArgs) =>
             {
                 ApplySpooderInfo();
             };
@@ -66,18 +102,23 @@ public partial class MainWindow : UserControl
                 else
                 {
                     ShowMainView();
+                    var appSettings = SettingsManager.LoadSettings();
+                    if (appSettings.StartSpooderOnStartup)
+                    {
+                        viewModel._spooder?.StartSpooder();
+                    }
                 }
                 _initialViewSet = true;
             }
         }
     }
 
-    private void OnMainViewClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnMainViewClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         ShowMainView();
     }
 
-    private void OnSettingsClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (settingsOpened)
         {
@@ -104,6 +145,11 @@ public partial class MainWindow : UserControl
             Debug.WriteLine("ContentFrame not found!");
         }
         settingsOpened = false;
+        var settingsButton = this.FindControl<ToggleButton>("SettingsButton");
+        if (settingsButton != null)
+        {
+            settingsButton.SetCurrentValue(ToggleButton.IsCheckedProperty, false);
+        }
     }
 
     private void ShowSettingsView()
@@ -141,27 +187,30 @@ public partial class MainWindow : UserControl
                 spooderNameBlock.Text = spooder.name;
             }
 
-            var MainBorder = this.FindControl<Border>("MainBorder");
-            var ContentBorder = this.FindControl<Border>("ContentBorder");
+            var mainBorder = this.FindControl<Border>("MainBorder");
+            var contentBorder = this.FindControl<Border>("ContentBorder");
 
             var hue = theme.hue;
             var saturation = theme.saturation;
 
-            if (MainBorder != null)
+            if (mainBorder != null)
             {
-                MainBorder.Background = BrushFromHsv(hue, saturation, 0.2f);
+                mainBorder.Background = BrushFromHsv(hue, saturation, 0.2f);
             }
 
-            if (ContentBorder != null)
+            if (contentBorder != null)
             {
-                ContentBorder.BorderBrush = BrushFromHsv(hue, saturation, 1.0f);
+                contentBorder.BorderBrush = BrushFromHsv(hue, saturation, 1.0f);
             }
 
-            ApplyCustomSpooder(spooder.customSpooder);
+            if (spooder.customSpooder != null)
+            {
+                ApplyCustomSpooder(spooder.customSpooder);
+            }
         }
     }
 
-    private Brush BrushFromHsv(float hue, float saturation, float value)
+    private static Brush BrushFromHsv(float hue, float saturation, float value)
     {
         // Convert HSV to RGB
         var hueInDegrees = hue * 360.0f;
@@ -206,7 +255,7 @@ public partial class MainWindow : UserControl
 
     private void ApplyCustomSpooder(CustomSpooder customSpooder)
     {
-        if (customSpooder?.Parts == null || customSpooder.Parts.Count == 0)
+        if (customSpooder.Parts.Count == 0)
             return;
 
         // Define the control names in the display order (left to right in the UI)

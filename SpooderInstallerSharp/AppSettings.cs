@@ -13,6 +13,8 @@ namespace SpooderInstallerSharp.Models
         public bool ShowUpdatePrompts { get; set; } = true;
         public int ScreenWidth { get; set; } = 800;
         public int ScreenHeight { get; set; } = 600;
+        public bool StartSpooderOnStartup { get; set; } = false;
+        public bool OpenSpooderOnStartup { get; set; } = true;
     };
 
     public class UpdateAvailableEventArgs : EventArgs
