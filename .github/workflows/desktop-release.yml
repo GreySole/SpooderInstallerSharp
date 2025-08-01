@@ -43,6 +43,10 @@ jobs:
       with:
         dotnet-version: '8.0'
 
+    # Install Velopack CLI
+    - name: Install Velopack CLI
+      run: dotnet tool install -g vpk
+
     - name: Restore dependencies
       run: dotnet restore ${{ env.DESKTOP_PROJ }}
 
@@ -68,14 +72,7 @@ jobs:
       shell: pwsh
       run: Get-ChildItem -Recurse -Path ${{ env.PUBLISH_DIR }}
 
-    # Upload full publish directory (diagnostics / downstream)
-    - name: Upload Published Binaries
-      uses: actions/upload-artifact@v4
-      with:
-        name: desktop-binaries
-        path: ${{ env.PUBLISH_DIR }}
-
-    - name: Get Tag Name
+    - name: Get Tag Name and Version
       id: get_tag
       shell: pwsh
       run: |
@@ -94,10 +91,51 @@ jobs:
           Write-Error "Tag name is empty!"
           exit 1
         }
+        
+        # Extract version number from tag (remove 'v' prefix if present)
+        $version = $tagName
+        if ($version.StartsWith('v')) {
+          $version = $version.Substring(1)
+        }
+        
         echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
         Write-Host "Using TAG_NAME: $tagName"
+        Write-Host "Using VERSION: $version"
 
-    # Package exe + nodejs folder into versioned zip
+    # Create Velopack installer
+    - name: Create Velopack Installer
+      shell: pwsh
+      run: |
+        $publishDir = Join-Path $env:GITHUB_WORKSPACE "${{ env.PUBLISH_DIR }}"
+        $version = "${{ steps.get_tag.outputs.VERSION }}"
+        
+        Write-Host "Creating Velopack installer..."
+        Write-Host "Publish directory: $publishDir"
+        Write-Host "Version: $version"
+        
+        # Ensure we're in the right directory for relative paths
+        Set-Location $env:GITHUB_WORKSPACE
+        
+        vpk pack -u Spooder_Manager --packTitle "Spooder Manager" --icon .\SpooderInstallerSharp\Assets\favicon.ico --splashImage .\SpooderInstallerSharp\Assets\spooder-loading.gif -v $version -p $publishDir -e SpooderInstallerSharp.Desktop.exe
+        
+        Write-Host "Velopack packaging completed"
+
+    # Upload full publish directory (diagnostics / downstream)
+    - name: Upload Published Binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: desktop-binaries
+        path: ${{ env.PUBLISH_DIR }}
+
+    # Upload Velopack installer files
+    - name: Upload Velopack Installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: velopack-installer
+        path: Releases
+
+    # Package exe + nodejs folder into versioned zip (keeping original functionality)
     - name: Package Release Zip
       id: package
       shell: pwsh
@@ -143,6 +181,7 @@ jobs:
         $currentTag = "${{ steps.get_tag.outputs.TAG_NAME }}"
         $zipPath    = "${{ steps.package.outputs.ZIP_PATH }}"
         $zipName    = "${{ steps.package.outputs.ZIP_NAME }}"
+        
         Write-Host "Processing release for tag: $currentTag"
         Write-Host "Asset path: $zipPath"
 
@@ -151,16 +190,32 @@ jobs:
           exit 1
         }
 
+        # Find Velopack installer files
+        $releasesDir = Join-Path $env:GITHUB_WORKSPACE "Releases"
+        $installerFiles = @()
+        if (Test-Path $releasesDir) {
+          $installerFiles = Get-ChildItem -Path $releasesDir -File | ForEach-Object { $_.FullName }
+          Write-Host "Found Velopack installer files:"
+          $installerFiles | ForEach-Object { Write-Host "  $_" }
+        }
+
         # Check if release exists
         gh release view "$currentTag" --repo "$env:GITHUB_REPOSITORY" *> $null
         if ($LASTEXITCODE -eq 0) {
-          Write-Host "Release exists; uploading zip asset."
+          Write-Host "Release exists; uploading assets."
           gh release upload "$currentTag" "$zipPath" --clobber --repo "$env:GITHUB_REPOSITORY"
+          
+          # Upload Velopack installer files
+          foreach ($file in $installerFiles) {
+            gh release upload "$currentTag" "$file" --clobber --repo "$env:GITHUB_REPOSITORY"
+          }
+          
           gh release edit "$currentTag" --title "Release $currentTag" --repo "$env:GITHUB_REPOSITORY"
         } else {
           Write-Host "Creating new release."
-          gh release create "$currentTag" "$zipPath" `
+          $assets = @($zipPath) + $installerFiles
+          gh release create "$currentTag" $assets `
             --title "Release $currentTag" `
-            --notes "Automated release for $currentTag" `
+            --notes "Automated release for $currentTag`n`nIncludes:`n- Portable ZIP package`n- Velopack installer for automatic updates" `
             --repo "$env:GITHUB_REPOSITORY"
         }
