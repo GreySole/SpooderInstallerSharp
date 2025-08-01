@@ -4,7 +4,19 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-	  <NullabilityInfoContextSupport>true</NullabilityInfoContextSupport>
+	<NullabilityInfoContextSupport>true</NullabilityInfoContextSupport>
+	  <!-- Application Info -->
+	  <AssemblyTitle>Spooder Manager</AssemblyTitle>
+	  <AssemblyDescription>Spooder Manager Application</AssemblyDescription>
+	  <AssemblyVersion>0.5.0</AssemblyVersion>
+	  <FileVersion>0.5.0</FileVersion>
+	  <ApplicationIcon>Assets\favicon.ico</ApplicationIcon>
+
+	  <!-- Publishing -->
+	  <PublishSingleFile>true</PublishSingleFile>
+	  <SelfContained>true</SelfContained>
+	  <PublishTrimmed>true</PublishTrimmed>
+	  <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,7 +39,6 @@
     <PackageReference Include="Svg.Controls.Avalonia" Version="11.3.0.1" />
     <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="11.3.0.1" />
     <PackageReference Include="System.Management" Version="9.0.6" />
-    <PackageReference Include="Velopack" Version="0.0.1298" />
     <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.2" />
     <PackageReference Include="Xaml.Behaviors.Interactions" Version="11.3.2" />
     <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.2" />

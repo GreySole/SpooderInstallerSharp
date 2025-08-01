@@ -11,6 +11,8 @@ namespace SpooderInstallerSharp.Models
         public string SelectedBranch { get; set; } = "main";
         public bool AutoCheckUpdates { get; set; } = true;
         public bool ShowUpdatePrompts { get; set; } = true;
+        public int ScreenWidth { get; set; } = 800;
+        public int ScreenHeight { get; set; } = 600;
     };
 
     public class UpdateAvailableEventArgs : EventArgs

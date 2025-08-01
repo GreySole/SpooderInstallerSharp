@@ -8,6 +8,20 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="SpooderInstallerSharp.Views.MainWindow"
 		x:DataType="vm:MainViewModel">
+	<UserControl.Styles>
+		<Style Selector="ToggleButton:checked">
+			<Setter Property="Background" Value="DarkGreen"/>
+		</Style>
+		<Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Background" Value="DarkGreen"/>
+		</Style>
+		<Style Selector="ToggleButton:checked:pointerover">
+			<Setter Property="Background" Value="LimeGreen"/>
+		</Style>
+		<Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Background" Value="LimeGreen"/>
+		</Style>
+	</UserControl.Styles>
 	<Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto"/>
@@ -43,7 +57,9 @@
 				</StackPanel>
 			<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
 				<views:ProcessControls DataContext="{Binding}" />
-				<Button icon:Attached.Icon="fa-spin fa-gear" FontSize="24" Click="OnSettingsClick"/>
+				<ToggleButton Name="SettingsButton" icon:Attached.Icon="fa-spin fa-gear" FontSize="24" Click="OnSettingsClick">
+					
+				</ToggleButton>
 			</StackPanel>
 		</UniformGrid>
 		</Border>

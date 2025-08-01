@@ -60,8 +60,9 @@ public partial class Settings : UserControl
                 var installationDirTextBox = this.FindControl<TextBox>("InstallationDirTextBox");
                 if (installationDirTextBox != null)
                 {
-                    installationDirTextBox.Text = selectedFolder.Path.LocalPath;
-                    SaveInstallationDirectory(selectedFolder.Path.LocalPath);
+                    var newPath = Path.Combine(selectedFolder.Path.LocalPath, "Spooder");
+                    installationDirTextBox.Text = newPath;
+                    SaveInstallationDirectory(newPath);
                 }
             }
         }

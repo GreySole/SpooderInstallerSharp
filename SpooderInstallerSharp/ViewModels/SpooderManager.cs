@@ -28,7 +28,7 @@ namespace SpooderInstallerSharp.ViewModels
         public event EventHandler SpooderThemeChanged;
         public event EventHandler<UpdateAvailableEventArgs> UpdateAvailable;
 
-        private IPC _ipc;
+        private readonly IPC _ipc;
 
         // Add event for receiving IPC messages
         public event EventHandler<string> MessageReceived;
@@ -91,7 +91,7 @@ namespace SpooderInstallerSharp.ViewModels
 
         private readonly Action<string> AppendToConsoleOutput;
         public Process spooderProcess;
-        static string exeDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+        static string exeDir = Path.GetDirectoryName(Environment.ProcessPath);
         public string nodePath = Path.Combine(exeDir, "nodejs", "node.exe");
         public string npmPath = Path.Combine(exeDir, "nodejs", "npm.cmd");
         

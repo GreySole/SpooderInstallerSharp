@@ -3,6 +3,8 @@
     <OutputType>WinExe</OutputType>
     <!--If you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
     One for Windows with net8.0-windows TFM, one for MacOS with net8.0-macos and one with net8.0 TFM for Linux.-->
+	<AssemblyTitle>Spooder Manager</AssemblyTitle>
+	<AssemblyDescription>Spooder Manager Application</AssemblyDescription>
     <TargetFramework>net8.0-windows</TargetFramework>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
 	<ApplicationIcon>Assets/favicon.ico</ApplicationIcon>
@@ -18,6 +20,7 @@
     <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.2" />
     <PackageReference Include="Xaml.Behaviors.Interactions" Version="11.3.2" />
     <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.2" />
+	<PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
 
   <ItemGroup>

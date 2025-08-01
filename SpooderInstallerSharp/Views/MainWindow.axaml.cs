@@ -1,4 +1,5 @@
 ﻿using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using SpooderInstallerSharp.JsonTypes;
 using SpooderInstallerSharp.Models;
@@ -19,6 +20,8 @@ public partial class MainWindow : UserControl
     {
         InitializeComponent();
         Debug.WriteLine($"Need Initialization {SettingsManager.InitializationNeeded}");
+
+        var settingsButton = this.FindControl<ToggleButton>("SettingsButton");
 
         // Don't set initial view here - DataContext isn't available yet
         // Just determine which view should be shown

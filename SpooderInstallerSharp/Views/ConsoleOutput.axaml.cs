@@ -2,6 +2,7 @@
 using Avalonia.Media;
 using Avalonia.Threading;
 using SpooderInstallerSharp.ViewModels;
+using SpooderInstallerSharp.Views.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -60,14 +61,13 @@ public partial class ConsoleOutput : UserControl
             return;
 
         var (processedText, matchedKeys) = ProcessLogText(text);
-
-        var textBlock = new TextBlock
+        var textBlock = new ClickableTextBlock
         {
             Text = processedText,
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            MatchedKeys = matchedKeys
         };
 
-        ColorUtil.ApplyLogStyle(textBlock, matchedKeys);
         _consoleOutputPanel.Children.Add(textBlock);
     }
 

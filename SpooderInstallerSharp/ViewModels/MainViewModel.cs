@@ -1,4 +1,6 @@
-﻿using Avalonia.Controls;
+﻿using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
@@ -45,6 +47,9 @@ public class MainViewModel : ReactiveObject
     public ICommand UpdateSpooder { get; }
     public ICommand OpenSpooder { get; }
     public ICommand BrowseSpooder { get; }
+    public ICommand ShowWindowCommand { get; }
+    public ICommand ToggleRun { get; }
+    public ICommand ExitCommand { get; }
 
     private bool _IsSpooderInstalled;
 
@@ -69,12 +74,14 @@ public class MainViewModel : ReactiveObject
             this.RaiseAndSetIfChanged(ref _IsSpooderRunning, value);
             this.RaisePropertyChanged(nameof(IsSpooderNotRunning));
             this.RaisePropertyChanged(nameof(IsSpooderRunnable));
+            this.RaisePropertyChanged(nameof(ToggleRunMenuText));
         }
     }
 
     public bool IsSpooderNotRunning => !IsSpooderRunning;
     public bool IsSpooderNotInstalled => !IsSpooderInstalled;
     public bool IsSpooderRunnable => !IsSpooderRunning && IsSpooderInstalled;
+    public string ToggleRunMenuText => IsSpooderRunning ? "Stop" : "Start";
 
     public ObservableCollection<string> ConsoleOutput { get; } = new ObservableCollection<string>();
 
@@ -87,7 +94,7 @@ public class MainViewModel : ReactiveObject
                 // Check if user wants to see update prompts
                 if (!appSettings.ShowUpdatePrompts)
                 {
-                    AppendToConsoleOutput($"Update available (v{e.NewVersion}), but update prompts are disabled in settings.");
+                    AppendToConsoleOutput($"Update available (v{e.NewVersion})");
                     return;
                 }
 
@@ -175,6 +182,39 @@ public class MainViewModel : ReactiveObject
         StopSpooder = ReactiveCommand.CreateFromTask(StopSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
         OpenSpooder = ReactiveCommand.CreateFromTask(OpenSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
         BrowseSpooder = ReactiveCommand.CreateFromTask(BrowseSpooderTask);
+        ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
+        ToggleRun = ReactiveCommand.CreateFromTask(ToggleRunTask);
+        ExitCommand = ReactiveCommand.Create(ExitApplication);
+    }
+
+    private void ShowWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.MainWindow?.Show();
+            desktop.MainWindow?.Activate();
+        }
+    }
+
+    private async Task ToggleRunTask()
+    {
+        if (IsSpooderRunning)
+        {
+            await StopSpooderTask();
+        }
+        else if (IsSpooderInstalled)
+        {
+            await StartSpooderTask();
+        }
+    }
+
+    private void ExitApplication()
+    {
+        OnCloseAsync();
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
     }
 
     public void OnCloseAsync()
