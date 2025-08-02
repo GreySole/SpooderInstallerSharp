@@ -34,8 +34,8 @@
 
 		<Border x:Name="MainBorder" Padding="10" >
 		<UniformGrid x:Name="MainUniformGrid" Columns="3" HorizontalAlignment="Stretch" VerticalAlignment="Center">
-			<StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
-				<TextBlock Text="Spooder Name" TextAlignment="Center" x:Name="SpooderName" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+			<StackPanel HorizontalAlignment="Left" Orientation="Horizontal">
+				<TextBlock Text="Spooder Name" TextAlignment="Left" x:Name="SpooderName" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 			</StackPanel>
 				<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" x:Name="SpooderPet">
 					<TextBlock Text="/╲" x:Name="longlegleft" FontSize="36"/>

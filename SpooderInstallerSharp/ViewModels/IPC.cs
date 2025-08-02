@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace SpooderInstallerSharp.ViewModels
 {
-    internal class IPC : IDisposable
+    public class IPC : IDisposable
     {
         private Process? _process;
         private readonly Action<string> _appendToConsoleOutput;

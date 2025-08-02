@@ -1,15 +1,11 @@
 ﻿using Avalonia.Threading;
-using LibGit2Sharp;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SpooderInstallerSharp.JsonTypes;
 using SpooderInstallerSharp.Models;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Management;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -28,10 +24,45 @@ namespace SpooderInstallerSharp.ViewModels
         public event EventHandler? SpooderThemeChanged;
         public event EventHandler<UpdateAvailableEventArgs>? UpdateAvailable;
 
-        private readonly IPC _ipc;
-
         // Add event for receiving IPC messages
         public event EventHandler<string>? MessageReceived;
+
+        // Component dependencies
+        private readonly IPC _ipc;
+        private readonly GitOperations _gitOperations;
+        private readonly ProcessManager _processManager;
+        private readonly InstallationManager _installationManager;
+        private readonly FileOperations _fileOperations;
+
+        private readonly Action<string> AppendToConsoleOutput;
+        public SpooderInfo? spooderInfo { get; set; }
+
+        public SpooderManager(Action<string> appendToConsoleOutput)
+        {
+            Debug.WriteLine($"SpooderManager created");
+            AppendToConsoleOutput = appendToConsoleOutput;
+
+            // Initialize IPC first
+            _ipc = new IPC(appendToConsoleOutput);
+            _ipc.MessageReceived += (sender, message) => OnMessageReceived(message);
+
+            // Initialize components
+            _gitOperations = new GitOperations(appendToConsoleOutput);
+            _fileOperations = new FileOperations(appendToConsoleOutput);
+            _processManager = new ProcessManager(appendToConsoleOutput, _ipc, 
+                                               OnSpooderRunStart, OnSpooderRunStop, refreshSpooderInfo);
+            _installationManager = new InstallationManager(appendToConsoleOutput, _gitOperations, _processManager, _fileOperations,
+                                                         OnSpooderInstallStart, OnSpooderInstallComplete, 
+                                                         OnSpooderUninstalled, OnSpooderCleaned);
+
+            var nodeExists = File.Exists(_processManager.nodePath);
+            var npmExists = File.Exists(_processManager.npmPath);
+
+            AppendToConsoleOutput($"Checking for Node.js: {(nodeExists ? "OK":"NOT FOUND")}");
+            AppendToConsoleOutput($"Checking for NPM: {(npmExists ? "OK" : "NOT FOUND")}");
+
+            refreshSpooderInfo();
+        }
 
         protected virtual void OnMessageReceived(string message)
         {
@@ -43,7 +74,7 @@ namespace SpooderInstallerSharp.ViewModels
             _ipc?.SendMessageToSpooder(message);
         }
 
-        // Method to raise the event  
+        // Method to raise the events  
         protected virtual void OnSpooderInstallStart()
         {
             SpooderInstallStart?.Invoke(this, EventArgs.Empty);
@@ -56,11 +87,13 @@ namespace SpooderInstallerSharp.ViewModels
 
         protected virtual void OnSpooderUninstalled()
         {
+            spooderInfo = null;
             SpooderUninstallComplete?.Invoke(this, EventArgs.Empty);
         }
 
         protected virtual void OnSpooderCleaned()
         {
+            spooderInfo = null;
             SpooderCleanComplete?.Invoke(this, EventArgs.Empty);
         }
 
@@ -87,33 +120,6 @@ namespace SpooderInstallerSharp.ViewModels
         protected virtual void OnUpdateAvailable(string currentVersion, string newVersion, string branch)
         {
             UpdateAvailable?.Invoke(this, new UpdateAvailableEventArgs(currentVersion, newVersion, branch));
-        }
-
-        private readonly Action<string> AppendToConsoleOutput;
-        public Process? spooderProcess;
-        static readonly string? exeDir = Path.GetDirectoryName(Environment.ProcessPath);
-        public readonly string nodePath = Path.Combine(exeDir ?? "", "nodejs", "node.exe");
-        public readonly string npmPath = Path.Combine(exeDir ?? "", "nodejs", "npm.cmd");
-        
-        public SpooderInfo? spooderInfo { get; set; }
-
-        private int spooderProcessId = -1;
-
-        public SpooderManager(Action<string> appendToConsoleOutput)
-        {
-            Debug.WriteLine($"SpooderManager created");
-            AppendToConsoleOutput = appendToConsoleOutput;
-
-            var nodeExists = File.Exists(nodePath);
-            var npmExists = File.Exists(npmPath);
-
-            AppendToConsoleOutput($"Checking for Node.js: {(nodeExists ? "OK":"NOT FOUND")}");
-            AppendToConsoleOutput($"Checking for NPM: {(npmExists ? "OK" : "NOT FOUND")}");
-
-            _ipc = new IPC(appendToConsoleOutput);
-            _ipc.MessageReceived += (sender, message) => OnMessageReceived(message);
-
-            refreshSpooderInfo();
         }
 
         public void refreshSpooderInfo()
@@ -222,11 +228,8 @@ namespace SpooderInstallerSharp.ViewModels
                             }
                         }
 
-
                         OnSpooderThemeChanged();
                     }
-
-
 
                     AppendToConsoleOutput($"Spooder is installed at {appSettings.SpooderInstallationPath}");
                 }
@@ -309,566 +312,13 @@ namespace SpooderInstallerSharp.ViewModels
             return spooderInfo;
         }
 
-        public bool StartSpooder()
-        {
-            AppendToConsoleOutput($"Attempting to start Spooder...");
-            var appSettings = SettingsManager.LoadSettings();
-            var scriptPath = appSettings.SpooderInstallationPath;
-            CheckPaths();
-
-            // Read the package.json to find the start script
-            string packageJsonPath = Path.Combine(scriptPath, "package.json");
-            string startScript = "index.js"; // Default fallback
-            string nodeArgs = ""; // Store any additional node arguments
-
-            try
-            {
-                if (File.Exists(packageJsonPath))
-                {
-                    string packageJsonContent = File.ReadAllText(packageJsonPath);
-                    JObject packageJson = JObject.Parse(packageJsonContent);
-
-                    // Get the scripts from package.json
-                    var scripts = packageJson["scripts"];
-                    if (scripts != null)
-                    {
-                        // First check for start-build command, then fallback to start
-                        string? npmStartCommand = null;
-
-                        if (scripts["start-build"] != null)
-                        {
-                            npmStartCommand = scripts["start-build"]?.ToString();
-                            AppendToConsoleOutput("Found start-build script, using it for startup.");
-                        }
-                        else if (scripts["start"] != null)
-                        {
-                            npmStartCommand = scripts["start"]?.ToString();
-                            AppendToConsoleOutput("Using start script for startup.");
-                        }
-
-                        if (!string.IsNullOrEmpty(npmStartCommand))
-                        {
-                            // Parse the command to extract node arguments and script file
-                            if (npmStartCommand.StartsWith("node "))
-                            {
-                                var commandParts = npmStartCommand.Substring(5).Trim();
-                                var parts = commandParts.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-                                if (parts.Length > 0)
-                                {
-                                    // Find the script file (first argument that doesn't start with -)
-                                    var scriptIndex = -1;
-                                    for (int i = 0; i < parts.Length; i++)
-                                    {
-                                        if (!parts[i].StartsWith("-"))
-                                        {
-                                            scriptIndex = i;
-                                            break;
-                                        }
-                                    }
-
-                                    if (scriptIndex >= 0)
-                                    {
-                                        // Extract node arguments (everything before the script)
-                                        if (scriptIndex > 0)
-                                        {
-                                            nodeArgs = string.Join(" ", parts.Take(scriptIndex));
-                                        }
-
-                                        // Extract script file and any script arguments
-                                        startScript = string.Join(" ", parts.Skip(scriptIndex));
-                                    }
-                                    else
-                                    {
-                                        // No script file found, treat everything as arguments
-                                        nodeArgs = commandParts;
-                                        startScript = "index.js"; // fallback
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                // If it's not a direct node command, use the command as is
-                                startScript = npmStartCommand;
-                            }
-                        }
-                    }
-                }
-
-                AppendToConsoleOutput($"Using start script: {startScript}");
-                if (!string.IsNullOrEmpty(nodeArgs))
-                {
-                    AppendToConsoleOutput($"Using node arguments: {nodeArgs}");
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Error reading package.json: {ex.Message}. Using default start script.");
-            }
-
-            // Determine if we need to use node directly or if the script is another command
-            bool useNodeDirectly = startScript.EndsWith(".js") || startScript.StartsWith("node ") || !string.IsNullOrEmpty(nodeArgs);
-            bool useTsx = startScript.StartsWith("tsx ") || startScript.Contains(".ts");
-
-            // Prepare the process start info
-            ProcessStartInfo processStartInfo;
-
-            if (useTsx)
-            {
-                // Handle tsx TypeScript execution
-                string tsxExecutable = Path.Combine(scriptPath, "node_modules", ".bin", "tsx.cmd");
-
-                // Fallback to global tsx if local not found
-                if (!File.Exists(tsxExecutable))
-                {
-                    tsxExecutable = "tsx"; // Assume global installation
-                }
-
-                // Extract the TypeScript file path from the command
-                string tsFile = startScript.StartsWith("tsx ") ? startScript.Substring(4).Trim() : startScript;
-
-                processStartInfo = new ProcessStartInfo(tsxExecutable, tsFile)
-                {
-                    WorkingDirectory = scriptPath,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    RedirectStandardInput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                // Add node_modules/.bin to PATH so tsx can find dependencies
-                string nodeModulesBin = Path.Combine(scriptPath, "node_modules", ".bin");
-                if (Directory.Exists(nodeModulesBin))
-                {
-                    string? currentPath = processStartInfo.EnvironmentVariables.ContainsKey("PATH")
-                        ? processStartInfo.EnvironmentVariables["PATH"]
-                        : Environment.GetEnvironmentVariable("PATH");
-                    processStartInfo.EnvironmentVariables["PATH"] = $"{nodeModulesBin};{currentPath}";
-                }
-
-                AppendToConsoleOutput($"Starting with tsx: {tsxExecutable} {tsFile}");
-            }
-            else if (useNodeDirectly)
-            {
-                // Run with node directly for .js files
-                // Combine node arguments with script path
-                string arguments = "";
-                if (!string.IsNullOrEmpty(nodeArgs))
-                {
-                    arguments = $"{nodeArgs} ";
-                }
-
-                // If startScript contains spaces (script + args), use it as is
-                // Otherwise, build the full path to the script
-                if (startScript.Contains(" ") || Path.IsPathRooted(startScript) || startScript.Contains("/") || startScript.Contains("\\"))
-                {
-                    arguments += startScript;
-                }
-                else
-                {
-                    string fullScriptPath = Path.Combine(scriptPath, startScript);
-                    arguments += $"\"{fullScriptPath}\"";
-                }
-
-                processStartInfo = new ProcessStartInfo(nodePath, arguments)
-                {
-                    WorkingDirectory = scriptPath,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    RedirectStandardInput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                AppendToConsoleOutput($"Starting Node.js directly: {nodePath} {arguments}");
-            }
-            else
-            {
-                // For more complex commands, use npm to run the appropriate script
-                string scriptName = "start";
-                if (!string.IsNullOrEmpty(nodeArgs) || startScript != "index.js")
-                {
-                    // Check if we found start-build earlier
-                    try
-                    {
-                        if (File.Exists(packageJsonPath))
-                        {
-                            string packageJsonContent = File.ReadAllText(packageJsonPath);
-                            JObject packageJson = JObject.Parse(packageJsonContent);
-                            var scripts = packageJson["scripts"];
-                            if (scripts != null && scripts["start-build"] != null)
-                            {
-                                scriptName = "start-build";
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore errors, use default
-                    }
-                }
-
-                processStartInfo = new ProcessStartInfo(npmPath, $"run {scriptName}")
-                {
-                    WorkingDirectory = scriptPath,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    RedirectStandardInput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                AppendToConsoleOutput($"Using npm to run {scriptName} script: {startScript}");
-            }
-
-            // Create and start the process
-            spooderProcess = new Process
-            {
-                StartInfo = processStartInfo,
-                EnableRaisingEvents = true
-            };
-
-            // Set up event handlers
-            spooderProcess.Exited += (sender, e) =>
-            {
-                AppendToConsoleOutput("Spooder has exited.");
-                _ipc.Cleanup();
-                OnSpooderRunStop();
-            };
-
-            spooderProcess.ErrorDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    AppendToConsoleOutput(e.Data);
-                }
-            };
-
-            // Start the process
-            spooderProcess.Start();
-            _ipc.SetupIpcCommunication(spooderProcess);
-            var pipeName = _ipc.GetPipeName();
-            if (!string.IsNullOrEmpty(pipeName))
-            {
-                // Send the pipe name to the process so it can connect
-                spooderProcess.StandardInput.WriteLine($"SPOODER_IPC_PIPE={pipeName}");
-                spooderProcess.StandardInput.Flush();
-            }
-
-            spooderProcess.BeginErrorReadLine();
-            spooderProcessId = spooderProcess.Id;
-            OnSpooderRunStart();
-
-            return true;
-        }
-
-        public bool StopSpooder()
-        {
-            Debug.WriteLine($"Cleaning up {Environment.NewLine} Process: {spooderProcessId}");
-            
-            if (spooderProcess == null || spooderProcess.HasExited)
-            {
-                return false;
-            }
-            
-            try
-            {
-                // Cancel any ongoing output reading
-                spooderProcess.CancelErrorRead();
-                Debug.WriteLine("Cancelled output reading");
-                
-                // Send SIGINT (CTRL+C) signal to Node.js
-                spooderProcess.StandardInput.Write("\u0003");
-                spooderProcess.StandardInput.Flush();
-
-                spooderProcess.Kill(true);
-                
-                // Give Node.js a chance to shut down gracefully
-                bool exited = spooderProcess.WaitForExit(5000);
-                
-                Debug.WriteLine($"Process exited: {spooderProcess.HasExited}");
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Error stopping process: {ex.Message}");
-            }
-            finally
-            {
-                _ipc?.Cleanup();
-                spooderProcess?.Dispose();
-                spooderProcess = null;
-                OnSpooderRunStop();
-                Dispatcher.UIThread.Post(() => refreshSpooderInfo());
-            }
-            
-            return true;
-        }
-
-        private void CloneRepository(string repoUrl, string localPath, string branch = "main")
-        {
-            AppendToConsoleOutput($"Cloning Spooder repository on {branch}...");
-            var cloneOptions = new CloneOptions
-            {
-                BranchName = branch,
-                OnCheckoutProgress = (path, completedSteps, totalSteps) =>
-                {
-                    AppendToConsoleOutput($"Checked out {completedSteps} of {totalSteps} steps.");
-                }
-            };
-            try
-            {
-                Repository.Clone(repoUrl, localPath, cloneOptions);
-                AppendToConsoleOutput($"Repository cloned to {localPath}");
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Error cloning repository: {ex.Message}");
-            }
-        }
-
-        public void CheckPaths()
-        {
-            if (!File.Exists(nodePath))
-            {
-                AppendToConsoleOutput("Node.js executable not found.");
-                throw new FileNotFoundException("Node.js executable not found.", nodePath);
-            }
-
-            if (!File.Exists(npmPath))
-            {
-                AppendToConsoleOutput("npm script not found.");
-                throw new FileNotFoundException("npm script not found.", npmPath);
-            }
-        }
-
-        public async Task<bool> InstallSpooder()
-        {
-            var appSettings = SettingsManager.LoadSettings();
-            var scriptPath = appSettings.SpooderInstallationPath;
-            var selectedBranch = appSettings.SelectedBranch;
-            Debug.WriteLine($"Installing Spooder to {scriptPath} on branch {selectedBranch}");
-            OnSpooderInstallStart();
-            CloneRepository("https://github.com/GreySole/Spooder.git", scriptPath, branch: selectedBranch);
-
-            CheckPaths();
-
-            var processStartInfo = new ProcessStartInfo(npmPath, "install")
-            {
-                WorkingDirectory = scriptPath,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using (var process = new Process { StartInfo = processStartInfo })
-            {
-                process.OutputDataReceived += (sender, e) =>
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
-                    {
-                        AppendToConsoleOutput(e.Data);
-                    }
-                };
-                process.ErrorDataReceived += (sender, e) =>
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
-                    {
-                        AppendToConsoleOutput(e.Data);
-                    }
-                };
-
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                await process.WaitForExitAsync();
-
-                if (process.ExitCode == 0)
-                {
-                    AppendToConsoleOutput("Dependencies installed successfully.");
-
-                    // After npm install, run the build command if it exists
-                    bool buildSuccess = await RunBuildCommand(scriptPath);
-
-                    if (buildSuccess)
-                    {
-                        AppendToConsoleOutput("Installation and build completed successfully.");
-                        OnSpooderInstallComplete();
-                        return true;
-                    }
-                    else
-                    {
-                        AppendToConsoleOutput("Installation succeeded but build failed.");
-                        OnSpooderInstallComplete();
-                        return false;
-                    }
-                }
-                else
-                {
-                    AppendToConsoleOutput("Installation failed.");
-                    OnSpooderInstallComplete();
-                    return false;
-                }
-            }
-        }
-
-        private async Task<bool> RunBuildCommand(string workingDirectory)
-        {
-            try
-            {
-                ProcessStartInfo processStartInfo;
-
-                // Use npm to run the build script
-                CheckPaths();
-
-                processStartInfo = new ProcessStartInfo(npmPath, "run build")
-                {
-                    WorkingDirectory = workingDirectory,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                AppendToConsoleOutput($"Building with npm: npm run build");
-
-                using (var process = new Process { StartInfo = processStartInfo })
-                {
-                    process.OutputDataReceived += (sender, e) =>
-                    {
-                        if (!string.IsNullOrEmpty(e.Data))
-                        {
-                            AppendToConsoleOutput(e.Data);
-                        }
-                    };
-                    process.ErrorDataReceived += (sender, e) =>
-                    {
-                        if (!string.IsNullOrEmpty(e.Data))
-                        {
-                            AppendToConsoleOutput(e.Data);
-                        }
-                    };
-
-                    process.Start();
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-                    await process.WaitForExitAsync();
-
-                    if (process.ExitCode == 0)
-                    {
-                        AppendToConsoleOutput("Build completed successfully.");
-                        return true;
-                    }
-                    else
-                    {
-                        AppendToConsoleOutput($"Build failed with exit code {process.ExitCode}.");
-                        return false;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Error running build command: {ex.Message}");
-                return false;
-            }
-        }
-
-        public async Task<bool> UninstallSpooder()
-        {
-            try
-            {
-                var appSettings = SettingsManager.LoadSettings();
-                // First, stop any running Spooder process
-                if (spooderProcess != null && !spooderProcess.HasExited)
-                {
-                    AppendToConsoleOutput("Stopping Spooder process before uninstallation...");
-                    StopSpooder();
-                }
-
-                if (Directory.Exists(appSettings.SpooderInstallationPath))
-                {
-                    AppendToConsoleOutput($"Removing Spooder installation from {appSettings.SpooderInstallationPath}...");
-
-                    // Wait a moment to ensure all file handles are closed
-                    await Task.Delay(1000);
-
-                    // Try smart deletion with permission handling
-                    bool success = await SmartDeleteDirectory(appSettings.SpooderInstallationPath);
-
-                    if (success)
-                    {
-                        spooderInfo = null;
-                        OnSpooderUninstalled();
-                        AppendToConsoleOutput("Spooder has been successfully uninstalled.");
-                        return true;
-                    }
-                    else
-                    {
-                        AppendToConsoleOutput("Failed to completely remove Spooder installation directory.");
-                        return false;
-                    }
-                }
-                else
-                {
-                    AppendToConsoleOutput("Spooder installation directory not found. Nothing to uninstall.");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Error uninstalling Spooder: {ex.Message}");
-                return false;
-            }
-        }
-
-        public async Task<bool> CleanSpooder()
-        {
-            try
-            {
-                var appSettings = SettingsManager.LoadSettings();
-                // First, stop any running Spooder process
-                if (spooderProcess != null && !spooderProcess.HasExited)
-                {
-                    AppendToConsoleOutput("Stopping Spooder process before cleaning...");
-                    StopSpooder();
-                }
-
-                var userDataPath = Path.Combine(appSettings.SpooderInstallationPath, "user");
-
-                if (Directory.Exists(userDataPath))
-                {
-                    AppendToConsoleOutput($"Removing Spooder User data from {appSettings.SpooderInstallationPath}...");
-
-                    // Wait a moment to ensure all file handles are closed
-                    await Task.Delay(1000);
-
-                    // Try smart deletion with permission handling
-                    bool success = await SmartDeleteDirectory(userDataPath);
-
-                    if (success)
-                    {
-                        spooderInfo = null;
-                        OnSpooderCleaned();
-                        AppendToConsoleOutput("Spooder has been successfully cleaned.");
-                        return true;
-                    }
-                    else
-                    {
-                        AppendToConsoleOutput("Failed to clean Spooder entirely.");
-                        return false;
-                    }
-                }
-                else
-                {
-                    AppendToConsoleOutput("Spooder installation directory not found. Nothing to clean.");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Error cleaning Spooder: {ex.Message}");
-                return false;
-            }
-        }
+        // Delegate to component methods
+        public bool StartSpooder() => _processManager.StartSpooder();
+        public bool StopSpooder() => _processManager.StopSpooder();
+        public void CheckPaths() => _processManager.CheckPaths();
+        public async Task<bool> InstallSpooder() => await _installationManager.InstallSpooder();
+        public async Task<bool> UninstallSpooder() => await _installationManager.UninstallSpooder();
+        public async Task<bool> CleanSpooder() => await _installationManager.CleanSpooder();
 
         public async Task<bool> UpdateSpooder(string? targetBranch = null)
         {
@@ -882,419 +332,37 @@ namespace SpooderInstallerSharp.ViewModels
             }
 
             // Stop Spooder if it's running
-            if (spooderProcess != null && !spooderProcess.HasExited)
+            if (_processManager.spooderProcess != null && !_processManager.spooderProcess.HasExited)
             {
                 AppendToConsoleOutput("Stopping Spooder before update...");
-                StopSpooder();
+                _processManager.StopSpooder();
                 await Task.Delay(2000); // Wait for clean shutdown
             }
 
             try
             {
-                using (var repo = new Repository(spooderPath))
+                // Update the repository using GitOperations
+                bool gitUpdateSuccess = await _gitOperations.UpdateRepository(spooderPath, targetBranch);
+                if (!gitUpdateSuccess)
                 {
-                    AppendToConsoleOutput("Updating Spooder repository...");
-
-                    // Ensure user folder is properly ignored
-                    await EnsureUserFolderIgnored(spooderPath);
-
-                    // Stash any local changes (including untracked files in user folder)
-                    AppendToConsoleOutput("Stashing local changes...");
-                    var signature = new Signature("SpooderInstaller", "installer@spooder.local", DateTimeOffset.Now);
-
-                    Stash? stashResult = null;
-                    try
-                    {
-                        stashResult = repo.Stashes.Add(signature, "Auto-stash before update", StashModifiers.IncludeUntracked);
-                        if (stashResult != null)
-                        {
-                            AppendToConsoleOutput("Local changes stashed successfully.");
-                        }
-                    }
-                    catch (LibGit2SharpException ex) when (ex.Message.Contains("no changes"))
-                    {
-                        AppendToConsoleOutput("No local changes to stash.");
-                    }
-
-                    // Fetch latest changes from remote
-                    var remote = repo.Network.Remotes["origin"];
-                    var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
-
-                    AppendToConsoleOutput("Fetching latest changes...");
-                    Commands.Fetch(repo, remote.Name, refSpecs, null, "Fetching updates");
-
-                    // Determine target branch
-                    string branchToUpdate = targetBranch ?? appSettings.SelectedBranch ?? "main";
-
-                    // Check if we need to switch branches
-                    var currentBranch = repo.Head.FriendlyName;
-                    if (currentBranch != branchToUpdate)
-                    {
-                        AppendToConsoleOutput($"Switching from branch '{currentBranch}' to '{branchToUpdate}'");
-
-                        // Try to find the branch locally first
-                        var localBranch = repo.Branches[branchToUpdate];
-                        if (localBranch == null)
-                        {
-                            // Create local branch tracking remote
-                            var remoteBranchToTrack = repo.Branches[$"origin/{branchToUpdate}"];
-                            if (remoteBranchToTrack == null)
-                            {
-                                AppendToConsoleOutput($"Branch '{branchToUpdate}' not found on remote.");
-                                return false;
-                            }
-
-                            localBranch = repo.CreateBranch(branchToUpdate, remoteBranchToTrack.Tip);
-                            repo.Branches.Update(localBranch, b => b.TrackedBranch = remoteBranchToTrack.CanonicalName);
-                        }
-
-                        // Checkout the target branch
-                        var checkoutOptions = new CheckoutOptions()
-                        {
-                            CheckoutModifiers = CheckoutModifiers.Force // Force checkout to avoid conflicts
-                        };
-                        Commands.Checkout(repo, localBranch, checkoutOptions);
-                    }
-
-                    // Reset to latest remote commit (hard reset)
-                    var remoteBranchName = $"origin/{branchToUpdate}";
-                    var remoteBranch = repo.Branches[remoteBranchName];
-                    if (remoteBranch != null)
-                    {
-                        AppendToConsoleOutput($"Resetting to latest {remoteBranchName}...");
-                        repo.Reset(ResetMode.Hard, remoteBranch.Tip);
-                        AppendToConsoleOutput("Repository updated successfully.");
-                    }
-                    else
-                    {
-                        AppendToConsoleOutput($"Remote branch {remoteBranchName} not found.");
-                        return false;
-                    }
-
-                    // Restore stashed changes (this will restore user folder contents)
-                    if (stashResult != null)
-                    {
-                        try
-                        {
-                            AppendToConsoleOutput("Restoring local changes...");
-                            repo.Stashes.Pop(0, new StashApplyOptions()
-                            {
-                                ApplyModifiers = StashApplyModifiers.ReinstateIndex
-                            });
-                            AppendToConsoleOutput("Local changes restored successfully.");
-                        }
-                        catch (Exception ex)
-                        {
-                            AppendToConsoleOutput($"Warning: Could not restore all local changes: {ex.Message}");
-                            AppendToConsoleOutput("User folder should still be intact due to .gitignore.");
-                        }
-                    }
-
-                    // Update the selected branch in settings if we switched
-                    if (targetBranch != null && targetBranch != appSettings.SelectedBranch)
-                    {
-                        appSettings.SelectedBranch = targetBranch;
-                        SettingsManager.SaveSettings(appSettings);
-                    }
-
-                    // Run npm install to update dependencies
-                    AppendToConsoleOutput("Updating dependencies...");
-                    await RunNpmInstall(spooderPath);
-
-                    AppendToConsoleOutput("Spooder update completed successfully!");
-
-                    // Refresh spooder info to reflect changes
-                    refreshSpooderInfo();
-
-                    return true;
+                    return false;
                 }
+
+                // Run npm install to update dependencies
+                AppendToConsoleOutput("Updating dependencies...");
+                await _installationManager.RunNpmInstall(spooderPath);
+                await _installationManager.RunBuildCommand(spooderPath);
+
+
+                AppendToConsoleOutput("Spooder update completed successfully!");
+
+                return true;
             }
             catch (Exception ex)
             {
                 AppendToConsoleOutput($"Error updating Spooder: {ex.Message}");
                 return false;
             }
-        }
-
-        private async Task EnsureUserFolderIgnored(string repoPath)
-        {
-            var gitignorePath = Path.Combine(repoPath, ".gitignore");
-
-            try
-            {
-                // Check if .gitignore exists and contains user folder entry
-                var gitignoreContent = new List<string>();
-
-                if (File.Exists(gitignorePath))
-                {
-                    gitignoreContent.AddRange(await File.ReadAllLinesAsync(gitignorePath));
-                }
-
-                // Check if user folder is already ignored
-                bool userFolderIgnored = gitignoreContent.Any(line =>
-                    line.Trim().Equals("user/", StringComparison.OrdinalIgnoreCase) ||
-                    line.Trim().Equals("user", StringComparison.OrdinalIgnoreCase) ||
-                    line.Trim().Equals("/user/", StringComparison.OrdinalIgnoreCase) ||
-                    line.Trim().Equals("/user", StringComparison.OrdinalIgnoreCase));
-
-                if (!userFolderIgnored)
-                {
-                    AppendToConsoleOutput("Adding user folder to .gitignore...");
-                    gitignoreContent.Add("");
-                    gitignoreContent.Add("# User configuration and data");
-                    gitignoreContent.Add("user/");
-
-                    await File.WriteAllLinesAsync(gitignorePath, gitignoreContent);
-                    AppendToConsoleOutput("User folder added to .gitignore.");
-                }
-                else
-                {
-                    AppendToConsoleOutput("User folder is already in .gitignore.");
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Warning: Could not update .gitignore: {ex.Message}");
-            }
-        }
-
-        private async Task<bool> RunNpmInstall(string workingDirectory)
-        {
-            CheckPaths();
-
-            var processStartInfo = new ProcessStartInfo(npmPath, "install --verbose")
-            {
-                WorkingDirectory = workingDirectory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using (var process = new Process { StartInfo = processStartInfo })
-            {
-                process.OutputDataReceived += (sender, e) =>
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
-                    {
-                        AppendToConsoleOutput(e.Data);
-                    }
-                };
-                process.ErrorDataReceived += (sender, e) =>
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
-                    {
-                        AppendToConsoleOutput(e.Data);
-                    }
-                };
-
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                await process.WaitForExitAsync();
-
-                return process.ExitCode == 0;
-            }
-        }
-
-        private async Task<bool> SmartDeleteDirectory(string path)
-        {
-            try
-            {
-                // First attempt: try standard deletion
-                AppendToConsoleOutput("Attempting standard directory deletion...");
-                Directory.Delete(path, true);
-                AppendToConsoleOutput("Standard deletion successful.");
-                return true;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                AppendToConsoleOutput("Access denied. Attempting permission-aware deletion...");
-                return await DeleteWithPermissionHandling(path);
-            }
-            catch (DirectoryNotFoundException)
-            {
-                // Directory doesn't exist, consider it successfully deleted
-                AppendToConsoleOutput("Directory not found - already deleted.");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Standard deletion failed: {ex.Message}");
-                AppendToConsoleOutput("Attempting permission-aware deletion...");
-                return await DeleteWithPermissionHandling(path);
-            }
-        }
-
-        private async Task<bool> DeleteWithPermissionHandling(string rootPath)
-        {
-            return await Task.Run(() =>
-            {
-                var problematicFiles = new List<string>();
-                var problematicDirs = new List<string>();
-
-                try
-                {
-                    // First pass: identify and fix permission issues
-                    IdentifyAndFixPermissionIssues(rootPath, problematicFiles, problematicDirs);
-
-                    // Second pass: attempt deletion
-                    DeleteDirectoryContents(rootPath);
-
-                    // Finally delete the root directory
-                    var rootDir = new DirectoryInfo(rootPath);
-                    if (rootDir.Exists)
-                    {
-                        try
-                        {
-                            rootDir.Attributes = FileAttributes.Normal;
-                            rootDir.Delete(false);
-                        }
-                        catch (Exception ex)
-                        {
-                            AppendToConsoleOutput($"Could not delete root directory {rootPath}: {ex.Message}");
-                            return false;
-                        }
-                    }
-
-                    AppendToConsoleOutput($"Successfully deleted directory. Fixed permissions on {problematicFiles.Count} files and {problematicDirs.Count} directories.");
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    AppendToConsoleOutput($"Permission-aware deletion failed: {ex.Message}");
-                    return false;
-                }
-            });
-        }
-
-        private void IdentifyAndFixPermissionIssues(string path, List<string> problematicFiles, List<string> problematicDirs)
-        {
-            if (!Directory.Exists(path))
-                return;
-
-            var directory = new DirectoryInfo(path);
-
-            // Check and fix directory permissions
-            try
-            {
-                if (HasRestrictiveAttributes(directory.Attributes))
-                {
-                    AppendToConsoleOutput($"Fixing permissions on directory: {path}");
-                    directory.Attributes = FileAttributes.Normal;
-                    problematicDirs.Add(path);
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Warning: Could not fix directory permissions for {path}: {ex.Message}");
-            }
-
-            // Process files in this directory
-            try
-            {
-                foreach (var file in directory.GetFiles())
-                {
-                    try
-                    {
-                        if (HasRestrictiveAttributes(file.Attributes))
-                        {
-                            AppendToConsoleOutput($"Fixing permissions on file: {file.FullName}");
-                            file.Attributes = FileAttributes.Normal;
-                            problematicFiles.Add(file.FullName);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendToConsoleOutput($"Warning: Could not fix file permissions for {file.FullName}: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Warning: Could not enumerate files in {path}: {ex.Message}");
-            }
-
-            // Recursively process subdirectories
-            try
-            {
-                foreach (var subDir in directory.GetDirectories())
-                {
-                    IdentifyAndFixPermissionIssues(subDir.FullName, problematicFiles, problematicDirs);
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Warning: Could not enumerate subdirectories in {path}: {ex.Message}");
-            }
-        }
-
-        private void DeleteDirectoryContents(string path)
-        {
-            if (!Directory.Exists(path))
-                return;
-
-            var directory = new DirectoryInfo(path);
-
-            // Delete all files first
-            try
-            {
-                foreach (var file in directory.GetFiles())
-                {
-                    try
-                    {
-                        // Ensure file is deletable
-                        if (file.Exists)
-                        {
-                            file.Attributes = FileAttributes.Normal;
-                            file.Delete();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendToConsoleOutput($"Warning: Could not delete file {file.FullName}: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Warning: Error processing files in {path}: {ex.Message}");
-            }
-
-            // Then delete subdirectories recursively
-            try
-            {
-                foreach (var subDir in directory.GetDirectories())
-                {
-                    DeleteDirectoryContents(subDir.FullName);
-
-                    // Delete the subdirectory itself
-                    try
-                    {
-                        if (subDir.Exists)
-                        {
-                            subDir.Attributes = FileAttributes.Normal;
-                            subDir.Delete(false);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendToConsoleOutput($"Warning: Could not delete directory {subDir.FullName}: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToConsoleOutput($"Warning: Error processing subdirectories in {path}: {ex.Message}");
-            }
-        }
-
-        private static bool HasRestrictiveAttributes(FileAttributes attributes)
-        {
-            // Check for attributes that might prevent deletion
-            return (attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly ||
-                   (attributes & FileAttributes.Hidden) == FileAttributes.Hidden ||
-                   (attributes & FileAttributes.System) == FileAttributes.System;
         }
     }
 }

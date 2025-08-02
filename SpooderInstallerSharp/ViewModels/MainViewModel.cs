@@ -119,11 +119,18 @@ public class MainViewModel : ReactiveObject
                     bool success = await Task.Run(() => _spooder.UpdateSpooder());
                     if (success)
                     {
-                        AppendToConsoleOutput("Spooder updated successfully!");
+                        Dispatcher.UIThread.Invoke(() =>
+                        {
+                            AppendToConsoleOutput("Spooder updated successfully!");
+                        });
+                        
                     }
                     else
                     {
-                        AppendToConsoleOutput("Spooder update failed.");
+                        Dispatcher.UIThread.Invoke(() =>
+                        {
+                            AppendToConsoleOutput("Spooder update failed.");
+                        });
                     }
                 }
                 else
