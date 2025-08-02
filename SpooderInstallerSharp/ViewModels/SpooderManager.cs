@@ -251,11 +251,11 @@ namespace SpooderInstallerSharp.ViewModels
                     // Set a reasonable timeout
                     httpClient.Timeout = TimeSpan.FromSeconds(10);
 
-                    var response = await httpClient.GetAsync(packageJsonUrl).ConfigureAwait(false);
+                    var response = await httpClient.GetAsync(packageJsonUrl);
 
                     if (response.IsSuccessStatusCode)
                     {
-                        string remotePackageContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        string remotePackageContent = await response.Content.ReadAsStringAsync();
                         JObject remotePackageJson = JObject.Parse(remotePackageContent);
                         var remoteVersionString = remotePackageJson["version"]?.ToString();
 
@@ -546,16 +546,14 @@ namespace SpooderInstallerSharp.ViewModels
             // Start the process
             spooderProcess.Start();
             _ipc.SetupIpcCommunication(spooderProcess);
-            if (useTsx)
+            var pipeName = _ipc.GetPipeName();
+            if (!string.IsNullOrEmpty(pipeName))
             {
-                var pipeName = _ipc.GetPipeName();
-                if (!string.IsNullOrEmpty(pipeName))
-                {
-                    // Send the pipe name to the process so it can connect
-                    spooderProcess.StandardInput.WriteLine($"SPOODER_IPC_PIPE={pipeName}");
-                    spooderProcess.StandardInput.Flush();
-                }
+                // Send the pipe name to the process so it can connect
+                spooderProcess.StandardInput.WriteLine($"SPOODER_IPC_PIPE={pipeName}");
+                spooderProcess.StandardInput.Flush();
             }
+
             spooderProcess.BeginErrorReadLine();
             spooderProcessId = spooderProcess.Id;
             OnSpooderRunStart();
@@ -682,14 +680,14 @@ namespace SpooderInstallerSharp.ViewModels
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-                await process.WaitForExitAsync().ConfigureAwait(false);
+                await process.WaitForExitAsync();
 
                 if (process.ExitCode == 0)
                 {
                     AppendToConsoleOutput("Dependencies installed successfully.");
 
                     // After npm install, run the build command if it exists
-                    bool buildSuccess = await RunBuildCommand(scriptPath).ConfigureAwait(false);
+                    bool buildSuccess = await RunBuildCommand(scriptPath);
 
                     if (buildSuccess)
                     {
@@ -753,7 +751,7 @@ namespace SpooderInstallerSharp.ViewModels
                     process.Start();
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
-                    await process.WaitForExitAsync().ConfigureAwait(false);
+                    await process.WaitForExitAsync();
 
                     if (process.ExitCode == 0)
                     {
@@ -791,10 +789,10 @@ namespace SpooderInstallerSharp.ViewModels
                     AppendToConsoleOutput($"Removing Spooder installation from {appSettings.SpooderInstallationPath}...");
 
                     // Wait a moment to ensure all file handles are closed
-                    await Task.Delay(1000).ConfigureAwait(false);
+                    await Task.Delay(1000);
 
                     // Try smart deletion with permission handling
-                    bool success = await SmartDeleteDirectory(appSettings.SpooderInstallationPath).ConfigureAwait(false);
+                    bool success = await SmartDeleteDirectory(appSettings.SpooderInstallationPath);
 
                     if (success)
                     {
@@ -841,10 +839,10 @@ namespace SpooderInstallerSharp.ViewModels
                     AppendToConsoleOutput($"Removing Spooder User data from {appSettings.SpooderInstallationPath}...");
 
                     // Wait a moment to ensure all file handles are closed
-                    await Task.Delay(1000).ConfigureAwait(false);
+                    await Task.Delay(1000);
 
                     // Try smart deletion with permission handling
-                    bool success = await SmartDeleteDirectory(userDataPath).ConfigureAwait(false);
+                    bool success = await SmartDeleteDirectory(userDataPath);
 
                     if (success)
                     {
@@ -888,7 +886,7 @@ namespace SpooderInstallerSharp.ViewModels
             {
                 AppendToConsoleOutput("Stopping Spooder before update...");
                 StopSpooder();
-                await Task.Delay(2000).ConfigureAwait(false); // Wait for clean shutdown
+                await Task.Delay(2000); // Wait for clean shutdown
             }
 
             try
@@ -898,7 +896,7 @@ namespace SpooderInstallerSharp.ViewModels
                     AppendToConsoleOutput("Updating Spooder repository...");
 
                     // Ensure user folder is properly ignored
-                    await EnsureUserFolderIgnored(spooderPath).ConfigureAwait(false);
+                    await EnsureUserFolderIgnored(spooderPath);
 
                     // Stash any local changes (including untracked files in user folder)
                     AppendToConsoleOutput("Stashing local changes...");
@@ -1001,7 +999,7 @@ namespace SpooderInstallerSharp.ViewModels
 
                     // Run npm install to update dependencies
                     AppendToConsoleOutput("Updating dependencies...");
-                    await RunNpmInstall(spooderPath).ConfigureAwait(false);
+                    await RunNpmInstall(spooderPath);
 
                     AppendToConsoleOutput("Spooder update completed successfully!");
 
@@ -1029,7 +1027,7 @@ namespace SpooderInstallerSharp.ViewModels
 
                 if (File.Exists(gitignorePath))
                 {
-                    gitignoreContent.AddRange(await File.ReadAllLinesAsync(gitignorePath).ConfigureAwait(false));
+                    gitignoreContent.AddRange(await File.ReadAllLinesAsync(gitignorePath));
                 }
 
                 // Check if user folder is already ignored
@@ -1046,7 +1044,7 @@ namespace SpooderInstallerSharp.ViewModels
                     gitignoreContent.Add("# User configuration and data");
                     gitignoreContent.Add("user/");
 
-                    await File.WriteAllLinesAsync(gitignorePath, gitignoreContent).ConfigureAwait(false);
+                    await File.WriteAllLinesAsync(gitignorePath, gitignoreContent);
                     AppendToConsoleOutput("User folder added to .gitignore.");
                 }
                 else
@@ -1093,7 +1091,7 @@ namespace SpooderInstallerSharp.ViewModels
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-                await process.WaitForExitAsync().ConfigureAwait(false);
+                await process.WaitForExitAsync();
 
                 return process.ExitCode == 0;
             }
@@ -1112,7 +1110,7 @@ namespace SpooderInstallerSharp.ViewModels
             catch (UnauthorizedAccessException)
             {
                 AppendToConsoleOutput("Access denied. Attempting permission-aware deletion...");
-                return await DeleteWithPermissionHandling(path).ConfigureAwait(false);
+                return await DeleteWithPermissionHandling(path);
             }
             catch (DirectoryNotFoundException)
             {
@@ -1124,7 +1122,7 @@ namespace SpooderInstallerSharp.ViewModels
             {
                 AppendToConsoleOutput($"Standard deletion failed: {ex.Message}");
                 AppendToConsoleOutput("Attempting permission-aware deletion...");
-                return await DeleteWithPermissionHandling(path).ConfigureAwait(false);
+                return await DeleteWithPermissionHandling(path);
             }
         }
 
@@ -1167,7 +1165,7 @@ namespace SpooderInstallerSharp.ViewModels
                     AppendToConsoleOutput($"Permission-aware deletion failed: {ex.Message}");
                     return false;
                 }
-            }).ConfigureAwait(false);
+            });
         }
 
         private void IdentifyAndFixPermissionIssues(string path, List<string> problematicFiles, List<string> problematicDirs)

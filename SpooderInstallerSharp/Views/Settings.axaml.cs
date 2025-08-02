@@ -70,7 +70,7 @@ public partial class Settings : UserControl
             {
                 Title = "Select Installation Directory",
                 AllowMultiple = false
-            }).ConfigureAwait(false);
+            });
 
             if (folders.Count > 0)
             {
@@ -144,7 +144,7 @@ public partial class Settings : UserControl
 
         if (mainViewModel.IsSpooderInstalled)
         {
-            var result = await MessageBoxManager.GetMessageBoxStandard("Switch Branch", $"Switching to {branch} will reinstall Spooder while preserving your data. Plugin dependencies may need to be reinstalled. Continue?", MsBox.Avalonia.Enums.ButtonEnum.YesNo).ShowAsync().ConfigureAwait(false);
+            var result = await MessageBoxManager.GetMessageBoxStandard("Switch Branch", $"Switching to {branch} will reinstall Spooder while preserving your data. Plugin dependencies may need to be reinstalled. Continue?", MsBox.Avalonia.Enums.ButtonEnum.YesNo).ShowAsync();
             if (result == ButtonResult.Yes)
             {
                 var appSettings = SettingsManager.LoadSettings();

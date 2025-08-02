@@ -52,13 +52,13 @@ namespace SpooderInstallerSharp.ViewModels
                 {
                     if (_pipeServer != null)
                     {
-                        await _pipeServer.WaitForConnectionAsync().ConfigureAwait(false);
+                        await _pipeServer.WaitForConnectionAsync();
                         _appendToConsoleOutput("IPC pipe connected successfully");
 
                         using (var reader = new StreamReader(_pipeServer))
                         {
                             string? line;
-                            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null && !_isDisposed)
+                            while ((line = await reader.ReadLineAsync()) != null && !_isDisposed)
                             {
                                 OnMessageReceived(line);
                             }
@@ -84,7 +84,7 @@ namespace SpooderInstallerSharp.ViewModels
                         using (var reader = new StreamReader(_process.StandardOutput.BaseStream))
                         {
                             string? line;
-                            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null && !_isDisposed)
+                            while ((line = await reader.ReadLineAsync()) != null && !_isDisposed)
                             {
                                 // Check if this is a structured IPC message via stdout
                                 if (line.StartsWith("IPC:"))
