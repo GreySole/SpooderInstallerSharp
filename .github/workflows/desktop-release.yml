@@ -68,10 +68,6 @@ jobs:
         -p:IncludeNativeLibrariesForSelfExtract=true
         --output ${{ env.PUBLISH_DIR }}
 
-    - name: List publish output
-      shell: pwsh
-      run: Get-ChildItem -Recurse -Path ${{ env.PUBLISH_DIR }}
-
     - name: Get Tag Name and Version
       id: get_tag
       shell: pwsh
@@ -114,10 +110,33 @@ jobs:
         Write-Host "Publish directory: $publishDir"
         Write-Host "Version: $version"
         
+        # Extract channel from version (e.g., "0.5.0-beta" -> "beta")
+        $channel = "stable"  # default fallback
+        if ($version -match "^[^-]+-(.+)$") {
+            $channel = $matches[1]
+        }
+        
+        # Get platform from runner OS
+        $platform = if ($env:RUNNER_OS -eq "Windows") { "win" } 
+                    elseif ($env:RUNNER_OS -eq "Linux") { "linux" } 
+                    elseif ($env:RUNNER_OS -eq "macOS") { "mac" } 
+                    else { "unknown" }
+        
+        # Combine platform and channel
+        $channelArg = "$platform-$channel"
+        
+        Write-Host "Detected channel: $channel"
+        Write-Host "Platform: $platform"
+        Write-Host "Channel argument: $channelArg"
+        
+        # Remove channel suffix from version for Velopack
+        $cleanVersion = $version -replace "-.*$", ""
+        Write-Host "Clean version: $cleanVersion"
+        
         # Ensure we're in the right directory for relative paths
         Set-Location $env:GITHUB_WORKSPACE
         
-        vpk pack -u Spooder_Manager --packTitle "Spooder Manager" --icon .\SpooderInstallerSharp\Assets\favicon.ico --splashImage .\SpooderInstallerSharp\Assets\spooder-loading.gif -v $version -p $publishDir -e SpooderInstallerSharp.Desktop.exe
+        vpk pack -u Spooder_Manager --packTitle "Spooder Manager" --icon .\SpooderInstallerSharp\Assets\favicon.ico --splashImage .\SpooderInstallerSharp\Assets\spooder-loading.gif -v $cleanVersion -p $publishDir -e SpooderInstallerSharp.Desktop.exe -c $channelArg
         
         Write-Host "Velopack packaging completed"
 
