@@ -9,6 +9,7 @@ using SpooderInstallerSharp.ViewModels;
 using SpooderInstallerSharp.Views;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace SpooderInstallerSharp;
@@ -16,11 +17,14 @@ namespace SpooderInstallerSharp;
 public partial class App : Application
 {
     private MainViewModel? _mainViewModel;
+    private IUpdateService? _updateService;
 
     public override void Initialize()
     {
 
         AvaloniaXamlLoader.Load(this);
+
+        _updateService = CreateUpdateService();
 
         AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
         {
@@ -33,6 +37,19 @@ public partial class App : Application
             File.AppendAllText("fatal.log", $"Unobserved: {e.Exception}\n");
             e.SetObserved();
         };
+    }
+
+    private IUpdateService CreateUpdateService()
+    {
+        // Return appropriate service based on platform
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return new DesktopUpdateService();
+        }
+        else
+        {
+            return new AndroidUpdateService();
+        }
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -86,6 +103,16 @@ public partial class App : Application
             {
                 Dispatcher.UIThread.Post(() => UpdateTrayIcon("/Assets/StatusIcons/red_spooder_icon.ico", "Spooder Installer is not running"));
             };
+
+            _ = Task.Run(async () =>
+            {
+                // Small delay to ensure everything is fully loaded
+                await Task.Delay(1000);
+                if (_updateService != null)
+                {
+                    await _updateService.CheckForUpdatesAsync();
+                }
+            });
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
