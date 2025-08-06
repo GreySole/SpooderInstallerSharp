@@ -67,6 +67,8 @@ public partial class ConsoleOutput : UserControl
             MatchedKeys = matchedKeys
         };
 
+        Logger.Log("Console", processedText);
+
         _consoleOutputPanel.Children.Add(textBlock);
     }
 

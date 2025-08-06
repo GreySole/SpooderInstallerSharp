@@ -74,15 +74,56 @@ namespace SpooderInstallerSharp.ViewModels
                         // First check for start-build command, then fallback to start
                         string? npmStartCommand = null;
 
-                        if (scripts["start-build"] != null)
+                        if (appSettings.SelectedMode == "Normal")
                         {
-                            npmStartCommand = scripts["start-build"]?.ToString();
-                            AppendToConsoleOutput("Found start-build script, using it for startup.");
+                            if (scripts["start"] != null)
+                            {
+                                npmStartCommand = scripts["start"]?.ToString();
+                                AppendToConsoleOutput("Found start script, using it for startup.");
+                            }
+                            else
+                            {
+                                AppendToConsoleOutput("No start script found! Aborting...");
+                                return false;
+                            }
                         }
-                        else if (scripts["start"] != null)
+                        else if (appSettings.SelectedMode == "Dev")
                         {
-                            npmStartCommand = scripts["start"]?.ToString();
-                            AppendToConsoleOutput("Using start script for startup.");
+                            if (scripts["dev"] != null)
+                            {
+                                npmStartCommand = scripts["dev"]?.ToString();
+                                AppendToConsoleOutput("Using start script for startup.");
+                            }
+                            else
+                            {
+                                AppendToConsoleOutput("No dev script found! Aborting...");
+                                return false;
+                            }
+                        }else if(appSettings.SelectedMode == "Safe")
+                        {
+                            if (scripts["safe"] != null)
+                            {
+                                npmStartCommand = scripts["safe"]?.ToString();
+                                AppendToConsoleOutput("Using safe script for startup.");
+                            }
+                            else
+                            {
+                                AppendToConsoleOutput("No safe script found! Aborting...");
+                                return false;
+                            }
+                        }
+                        else if (appSettings.SelectedMode == "Init")
+                        {
+                            if (scripts["init"] != null)
+                            {
+                                npmStartCommand = scripts["init"]?.ToString();
+                                AppendToConsoleOutput("Using init script for startup.");
+                            }
+                            else
+                            {
+                                AppendToConsoleOutput("No init script found! Aborting...");
+                                return false;
+                            }
                         }
 
                         if (!string.IsNullOrEmpty(npmStartCommand))

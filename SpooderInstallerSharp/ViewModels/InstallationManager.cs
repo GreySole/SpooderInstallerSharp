@@ -37,7 +37,7 @@ namespace SpooderInstallerSharp.ViewModels
             var appSettings = SettingsManager.LoadSettings();
             var scriptPath = appSettings.SpooderInstallationPath;
             var selectedBranch = appSettings.SelectedBranch;
-            Debug.WriteLine($"Installing Spooder to {scriptPath} on branch {selectedBranch}");
+            Logger.LogInfo($"Installing Spooder to {scriptPath} on branch {selectedBranch}");
             OnSpooderInstallStart();
             _gitOperations.CloneRepository("https://github.com/GreySole/Spooder.git", scriptPath, branch: selectedBranch);
 
@@ -89,9 +89,9 @@ namespace SpooderInstallerSharp.ViewModels
                     }
                     else
                     {
-                        AppendToConsoleOutput("Installation succeeded but build failed.");
+                        AppendToConsoleOutput("Installation succeeded but build failed. You can still run Spooder in Dev mode.");
                         OnSpooderInstallComplete();
-                        return false;
+                        return true;
                     }
                 }
                 else

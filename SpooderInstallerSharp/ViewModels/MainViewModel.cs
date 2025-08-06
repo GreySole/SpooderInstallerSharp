@@ -50,6 +50,7 @@ public class MainViewModel : ReactiveObject
     public ICommand ShowWindowCommand { get; }
     public ICommand ToggleRun { get; }
     public ICommand ExitCommand { get; }
+    public ICommand OpenSpooderLog { get; }
 
     private bool _IsSpooderInstalled;
 
@@ -201,6 +202,7 @@ public class MainViewModel : ReactiveObject
         ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
         ToggleRun = ReactiveCommand.CreateFromTask(ToggleRunTask);
         ExitCommand = ReactiveCommand.Create(ExitApplication);
+        OpenSpooderLog = ReactiveCommand.Create(OpenSpooderLogFile);
     }
 
     private void ShowWindow()
@@ -235,7 +237,13 @@ public class MainViewModel : ReactiveObject
 
     public void OnCloseAsync()
     {
+        Logger.LogInfo("Manager application shutting down...");
         _spooder.StopSpooder();
+    }
+
+    public void OpenSpooderLogFile()
+    {
+        Logger.OpenLogFile();
     }
 
     public void AppendToConsoleOutput(string text)
@@ -274,6 +282,7 @@ public class MainViewModel : ReactiveObject
         var appSettings = SettingsManager.LoadSettings();
         if (appSettings.OpenSpooderOnStartup)
         {
+            await Task.Delay(5000);
             await OpenSpooderTask();
         }
     }

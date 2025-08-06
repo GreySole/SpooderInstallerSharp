@@ -28,11 +28,14 @@ public partial class App : Application
 
         AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
         {
+            var exception = e.ExceptionObject as Exception;
+            Logger.LogError($"Unhandled exception occurred", exception ?? new Exception(e.ExceptionObject?.ToString() ?? "Unknown exception"));
             _mainViewModel?.OnCloseAsync();
             File.AppendAllText("fatal.log", $"Unhandled: {e.ExceptionObject}\n");
         };
         TaskScheduler.UnobservedTaskException += (sender, e) =>
         {
+            Logger.LogError($"Unobserved task exception occurred", e.Exception);
             _mainViewModel?.OnCloseAsync();
             File.AppendAllText("fatal.log", $"Unobserved: {e.Exception}\n");
             e.SetObserved();
@@ -54,6 +57,8 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        Logger.LogInfo("SpooderInstaller application starting up...");
+
         _mainViewModel = new MainViewModel();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

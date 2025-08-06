@@ -29,6 +29,7 @@ public partial class Settings : UserControl
     {
         InitializeComponent();
         _ = PopulateBranchSelectAsync();
+        PopulateModes();
         LoadInstallationDirectory();
         LoadPreferences();
     }
@@ -93,6 +94,35 @@ public partial class Settings : UserControl
         SettingsManager.SaveSettings(appSettings);
     }
 
+    private void PopulateModes()
+    {
+        var modeSelect = this.FindControl<ComboBox>("ModeSelect");
+        var items = new List<string>(["Normal", "Dev", "Safe", "Init"]);
+
+        if (modeSelect != null)
+        {
+            foreach (var item in items)
+            {
+                modeSelect.Items.Add(item);
+            }
+
+            var appSettings = SettingsManager.LoadSettings();
+
+            if (!string.IsNullOrEmpty(appSettings.SelectedMode))
+            {
+                modeSelect.SelectedItem = appSettings.SelectedMode;
+            }
+
+            modeSelect.SelectionChanged += ModeSelect_SelectionChanged;
+        }
+        else
+        {
+            // Handle the case where the ComboBox is not found
+            Debug.WriteLine("ModeSelect ComboBox not found.");
+        }
+
+    }
+
     private async Task PopulateBranchSelectAsync()
     {
         var branchSelect = this.FindControl<ComboBox>("BranchSelect");
@@ -100,6 +130,9 @@ public partial class Settings : UserControl
 
         if (branchSelect != null)
         {
+            var recommendedBranch = "";
+            
+            // Add all branches to the ComboBox
             foreach (var item in items)
             {
                 branchSelect.Items.Add(item);
@@ -111,6 +144,17 @@ public partial class Settings : UserControl
             {
                 branchSelect.SelectedItem = appSettings.SelectedBranch;
             }
+            else
+            {
+                var bestBranch = FindBestBranch(items);
+                if (!string.IsNullOrEmpty(bestBranch))
+                {
+                    recommendedBranch = bestBranch;
+                    appSettings.SelectedBranch = recommendedBranch;
+                    SettingsManager.SaveSettings(appSettings);
+                }
+                branchSelect.SelectedItem = recommendedBranch;
+            }
 
             branchSelect.SelectionChanged += BranchSelect_SelectionChanged;
         }
@@ -119,6 +163,109 @@ public partial class Settings : UserControl
             // Handle the case where the ComboBox is not found
             Debug.WriteLine("BranchSelect ComboBox not found.");
         }
+    }
+
+    private string FindBestBranch(List<string> branches)
+    {
+        if (branches == null || branches.Count == 0)
+            return string.Empty;
+
+        string bestStable = string.Empty;
+        string bestBeta = string.Empty;
+        string bestDev = string.Empty;
+        string bestOther = string.Empty;
+
+        Version highestStableVersion = null;
+        Version highestBetaVersion = null;
+        Version highestDevVersion = null;
+        Version highestOtherVersion = null;
+
+        foreach (var branch in branches)
+        {
+            var version = ExtractVersion(branch);
+            if (version == null) continue;
+
+            if (branch.Contains("-stable", StringComparison.OrdinalIgnoreCase))
+            {
+                if (highestStableVersion == null || version > highestStableVersion)
+                {
+                    highestStableVersion = version;
+                    bestStable = branch;
+                }
+            }
+            else if (branch.Contains("-beta", StringComparison.OrdinalIgnoreCase))
+            {
+                if (highestBetaVersion == null || version > highestBetaVersion)
+                {
+                    highestBetaVersion = version;
+                    bestBeta = branch;
+                }
+            }
+            else if (branch.Contains("-dev", StringComparison.OrdinalIgnoreCase))
+            {
+                if (highestDevVersion == null || version > highestDevVersion)
+                {
+                    highestDevVersion = version;
+                    bestDev = branch;
+                }
+            }
+            else
+            {
+                if (highestOtherVersion == null || version > highestOtherVersion)
+                {
+                    highestOtherVersion = version;
+                    bestOther = branch;
+                }
+            }
+        }
+
+        // Prioritize: stable > beta > dev > other
+        if (!string.IsNullOrEmpty(bestStable))
+            return bestStable;
+        if (!string.IsNullOrEmpty(bestBeta))
+            return bestBeta;
+        if (!string.IsNullOrEmpty(bestDev))
+            return bestDev;
+        
+        return bestOther;
+    }
+
+    private Version ExtractVersion(string branchName)
+    {
+        if (string.IsNullOrEmpty(branchName))
+            return null;
+
+        // Try to extract version number from branch name
+        // Common patterns: v1.2.3, 1.2.3, v1.2.3-stable, etc.
+        var patterns = new[]
+        {
+            @"v?(\d+\.\d+\.\d+)", // v1.2.3 or 1.2.3
+            @"v?(\d+\.\d+)",      // v1.2 or 1.2
+            @"v?(\d+)"            // v1 or 1
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(branchName, pattern);
+            if (match.Success)
+            {
+                var versionString = match.Groups[1].Value;
+                
+                // Ensure we have at least major.minor.patch format
+                var parts = versionString.Split('.');
+                if (parts.Length == 1)
+                    versionString += ".0.0";
+                else if (parts.Length == 2)
+                    versionString += ".0";
+
+                if (Version.TryParse(versionString, out var version))
+                {
+                    return version;
+                }
+            }
+        }
+
+        return null;
     }
 
     private void BranchSelect_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -130,6 +277,21 @@ public partial class Settings : UserControl
             if (!string.IsNullOrEmpty(selectedBranch))
             {
                 _ = SaveSelectedBranchAsync(selectedBranch);
+            }
+        }
+    }
+
+    private void ModeSelect_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var modeSelect = sender as ComboBox;
+        if (modeSelect?.SelectedItem != null)
+        {
+            string? selectedMode = modeSelect.SelectedItem.ToString();
+            if (!string.IsNullOrEmpty(selectedMode))
+            {
+                var appSettings = SettingsManager.LoadSettings();
+                appSettings.SelectedMode = selectedMode;
+                SettingsManager.SaveSettings(appSettings);
             }
         }
     }
