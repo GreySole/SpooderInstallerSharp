@@ -64,7 +64,6 @@ jobs:
         --no-restore
         --runtime ${{ env.RUNTIME }}
         --self-contained ${{ env.SELF_CONTAINED }}
-        -p:PublishSingleFile=true
         -p:IncludeNativeLibrariesForSelfExtract=true
         --output ${{ env.PUBLISH_DIR }}
 
