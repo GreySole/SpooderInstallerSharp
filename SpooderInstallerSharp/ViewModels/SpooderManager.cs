@@ -55,6 +55,8 @@ namespace SpooderInstallerSharp.ViewModels
                                                          OnSpooderInstallStart, OnSpooderInstallComplete, 
                                                          OnSpooderUninstalled, OnSpooderCleaned);
 
+            _processManager.CheckPaths();
+
             var nodeExists = File.Exists(_processManager.nodePath);
             var npmExists = File.Exists(_processManager.npmPath);
 
@@ -160,6 +162,9 @@ namespace SpooderInstallerSharp.ViewModels
                         }
                         var spooderConfig = JObject.Parse(File.ReadAllText(spooderConfigPath));
                         var spooderTheme = JObject.Parse(File.ReadAllText(spooderThemePath));
+
+                        var hostPortToken = spooderConfig["network"]?["host_port"];
+                        spooderInfo.host_port = hostPortToken != null ? hostPortToken.Value<int>() : 3000;
 
                         var botNameToken = spooderConfig["bot"]?["bot_name"];
                         spooderInfo.name = botNameToken != null ? botNameToken.ToString() : "Unnamed";

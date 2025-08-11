@@ -12,6 +12,7 @@ namespace SpooderInstallerSharp.JsonTypes
         public string? version { get; set; }
         public CustomSpooder? customSpooder { get; set; }
         public SpooderTheme? themeVariables { get; set; }
+        public int? host_port { get; set; }
     }
 
     public class PackageJson

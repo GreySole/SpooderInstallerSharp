@@ -304,7 +304,8 @@ public class MainViewModel : ReactiveObject
     {
         try
         {
-            string url = "http://localhost:3000";
+            var hostPort = _spooder.spooderInfo?.host_port ?? 3000;
+            string url = $"http://localhost:{hostPort}";
 
             var processStartInfo = new ProcessStartInfo
             {

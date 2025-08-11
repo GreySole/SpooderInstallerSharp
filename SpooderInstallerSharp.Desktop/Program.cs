@@ -1,19 +1,14 @@
 ﻿using Avalonia;
 using Avalonia.ReactiveUI;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Enums;
 using Projektanker.Icons.Avalonia;
 using Projektanker.Icons.Avalonia.FontAwesome;
-using SpooderInstallerSharp.Models;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Velopack;
-using Velopack.Sources;
 
 namespace SpooderInstallerSharp.Desktop;
 

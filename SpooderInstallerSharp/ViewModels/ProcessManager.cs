@@ -20,8 +20,8 @@ namespace SpooderInstallerSharp.ViewModels
         private int spooderProcessId = -1;
 
         static readonly string? exeDir = Path.GetDirectoryName(Environment.ProcessPath);
-        public readonly string nodePath = Path.Combine(exeDir ?? "", "nodejs", "node.exe");
-        public readonly string npmPath = Path.Combine(exeDir ?? "", "nodejs", "npm.cmd");
+        public string nodePath = Path.Combine(exeDir ?? "", "nodejs", "node.exe");
+        public string npmPath = Path.Combine(exeDir ?? "", "nodejs", "npm.cmd");
 
         public ProcessManager(Action<string> appendToConsoleOutput, IPC ipc, 
                             Action onSpooderRunStart, Action onSpooderRunStop, Action refreshSpooderInfo)
@@ -35,17 +35,37 @@ namespace SpooderInstallerSharp.ViewModels
 
         public void CheckPaths()
         {
-            if (!File.Exists(nodePath))
+            var baseDir = Path.Combine(exeDir ?? "", "nodejs");
+            if (File.Exists(Path.Combine(baseDir, "node.exe")))
             {
-                AppendToConsoleOutput("Node.js executable not found.");
-                throw new FileNotFoundException("Node.js executable not found.", nodePath);
+                nodePath = Path.Combine(baseDir, "node.exe");
+                npmPath = Path.Combine(baseDir, "npm.cmd");
+                return;
             }
+            try
+            {
+                var nodeVersionDirs = Directory.GetDirectories(baseDir);
+                if (nodeVersionDirs.Length > 0)
+                {
+                    AppendToConsoleOutput($"Path: {nodeVersionDirs[0]}");
+                    nodePath = Path.Combine(nodeVersionDirs[0], "node.exe");
+                    npmPath = Path.Combine(nodeVersionDirs[0], "npm.cmd");
+                }
+                if (!File.Exists(nodePath))
+                {
+                    AppendToConsoleOutput("Node.js executable not found.");
+                }
 
-            if (!File.Exists(npmPath))
-            {
-                AppendToConsoleOutput("npm script not found.");
-                throw new FileNotFoundException("npm script not found.", npmPath);
+                if (!File.Exists(npmPath))
+                {
+                    AppendToConsoleOutput("npm script not found.");
+                }
             }
+            catch(Exception ex)
+            {
+                AppendToConsoleOutput($"Error checking paths: {ex.Message}");
+            }
+            
         }
 
         public bool StartSpooder()
