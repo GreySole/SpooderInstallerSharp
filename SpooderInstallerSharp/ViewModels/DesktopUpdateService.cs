@@ -33,22 +33,20 @@ public class DesktopUpdateService : IUpdateService
 
         try
         {
+            // Get the current version using the centralized version utility
+            var currentVersion = VersionUtil.GetVersionString();
 
-            // Get the FileVersion from the referenced SpooderInstallerSharp assembly
-            var referencedAssembly = Assembly.GetAssembly(typeof(AppSettings));
-            var fileVersionAttribute = referencedAssembly?.GetCustomAttribute<AssemblyFileVersionAttribute>();
-            var fileVersion = fileVersionAttribute?.Version ?? "0.5.0-test";
-
-
-            // Extract channel from FileVersion (e.g., "0.5.0-beta" -> "beta")
+            // Extract channel from current version (e.g., "0.5.0-beta" -> "beta")
             var explicitChannel = "test"; // default fallback
-            Debug.WriteLine($"Checking channel {explicitChannel}");
-            var dashIndex = fileVersion.IndexOf('-');
-            if (dashIndex >= 0 && dashIndex < fileVersion.Length - 1)
+            Debug.WriteLine($"Current version: {currentVersion}");
+            
+            var dashIndex = currentVersion.IndexOf('-');
+            if (dashIndex >= 0 && dashIndex < currentVersion.Length - 1)
             {
-                explicitChannel = $"win-{fileVersion.Substring(dashIndex + 1)}";
+                explicitChannel = $"win-{currentVersion.Substring(dashIndex + 1)}";
             }
 
+            Debug.WriteLine($"Checking channel: {explicitChannel}");
 
             var mgr = new UpdateManager(new GithubSource("https://github.com/GreySole/SpooderInstallerSharp", "", false), new UpdateOptions
             {
@@ -71,7 +69,7 @@ public class DesktopUpdateService : IUpdateService
                 var messageBox = MessageBoxManager.GetMessageBoxStandard(
                         "Manager Update Available",
                         $"A new version of Spooder Manager is available!\n\n" +
-                        $"Current Version: {fileVersion}\n" +
+                        $"Current Version: {currentVersion}\n" +
                         $"New Version: {newVersion.TargetFullRelease.Version}\n" +
                         $"Would you like to update now?",
                         ButtonEnum.YesNo,

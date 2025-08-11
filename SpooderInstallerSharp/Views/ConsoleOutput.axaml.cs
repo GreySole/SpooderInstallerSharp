@@ -37,21 +37,15 @@ public partial class ConsoleOutput : UserControl
     {
         try
         {
-            var assembly = Assembly.GetExecutingAssembly();
-            var assemblyName = assembly.GetName();
+            // Use the centralized version utility
+            var versionDisplay = VersionUtil.GetFormattedVersionDisplay();
+            ConsoleMessenger.AddStyledMessage(versionDisplay, "text-cyan", "text-bold");
             
-            // Get the version from AssemblyVersion
-            var version = assemblyName.Version?.ToString() ?? "Unknown";
-            
-            // Get the file version if available (which includes pre-release info like "-test")
-            var fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
-            var fileVersion = fileVersionInfo.FileVersion ?? version;
-            
-            // Get the product name
-            var productName = "Spooder Manager";
-            
-            // Display the version information with styling
-            ConsoleMessenger.AddStyledMessage($"=== {productName} v{fileVersion} ===", "text-cyan", "text-bold");
+            // Add debug info about version source in debug builds
+            #if DEBUG
+            var (_, _, versionSource) = VersionUtil.GetApplicationVersion();
+            ConsoleMessenger.AddDebugMessageF("Version retrieved from: {0}", versionSource);
+            #endif
         }
         catch (Exception ex)
         {
