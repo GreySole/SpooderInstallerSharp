@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SpooderInstallerSharp.Models;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -9,14 +10,13 @@ namespace SpooderInstallerSharp.ViewModels
     public class IPC : IDisposable
     {
         private Process? _process;
-        private readonly Action<string> _appendToConsoleOutput;
         private NamedPipeServerStream? _pipeServer;
         private string? _pipeName;
         private bool _isDisposed = false;
 
-        public IPC(Action<string> appendToConsoleOutput)
+        public IPC()
         {
-            _appendToConsoleOutput = appendToConsoleOutput;
+            // No longer need appendToConsoleOutput - using static ConsoleMessenger
         }
 
         // Add event for receiving IPC messages
@@ -53,7 +53,7 @@ namespace SpooderInstallerSharp.ViewModels
                     if (_pipeServer != null)
                     {
                         await _pipeServer.WaitForConnectionAsync();
-                        _appendToConsoleOutput("IPC pipe connected successfully");
+                        ConsoleMessenger.AddSuccessMessage("IPC pipe connected successfully");
 
                         using (var reader = new StreamReader(_pipeServer))
                         {
@@ -67,7 +67,7 @@ namespace SpooderInstallerSharp.ViewModels
                 }
                 catch (Exception ex) when (!_isDisposed)
                 {
-                    _appendToConsoleOutput($"Error in IPC pipe: {ex.Message}");
+                    ConsoleMessenger.AddErrorMessageF("Error in IPC pipe: {0}", ex.Message);
                 }
             });
         }
@@ -97,8 +97,8 @@ namespace SpooderInstallerSharp.ViewModels
                                 }
                                 else
                                 {
-                                    // Regular output
-                                    _appendToConsoleOutput(line);
+                                    // Regular output - use ConsoleMessenger's plain message for real-time output
+                                    ConsoleMessenger.AddPlainMessage(line);
                                 }
                             }
                         }
@@ -106,7 +106,7 @@ namespace SpooderInstallerSharp.ViewModels
                 }
                 catch (Exception ex) when (!_isDisposed)
                 {
-                    _appendToConsoleOutput($"Error reading stdout: {ex.Message}");
+                    ConsoleMessenger.AddErrorMessageF("Error reading stdout: {0}", ex.Message);
                 }
             });
         }
@@ -149,7 +149,7 @@ namespace SpooderInstallerSharp.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    _appendToConsoleOutput($"Error sending message to Spooder: {ex.Message}");
+                    ConsoleMessenger.AddErrorMessageF("Error sending message to Spooder: {0}", ex.Message);
                 }
             }
         }
@@ -183,7 +183,7 @@ namespace SpooderInstallerSharp.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    _appendToConsoleOutput($"Error cleaning up IPC pipe: {ex.Message}");
+                    ConsoleMessenger.AddErrorMessageF("Error cleaning up IPC pipe: {0}", ex.Message);
                 }
 
                 _pipeServer = null;

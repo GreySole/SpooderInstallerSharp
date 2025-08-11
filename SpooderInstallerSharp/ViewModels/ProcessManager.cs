@@ -10,7 +10,6 @@ namespace SpooderInstallerSharp.ViewModels
 {
     public class ProcessManager
     {
-        private readonly Action<string> AppendToConsoleOutput;
         private readonly IPC _ipc;
         private readonly Action OnSpooderRunStart;
         private readonly Action OnSpooderRunStop;
@@ -23,10 +22,8 @@ namespace SpooderInstallerSharp.ViewModels
         public string nodePath = Path.Combine(exeDir ?? "", "nodejs", "node.exe");
         public string npmPath = Path.Combine(exeDir ?? "", "nodejs", "npm.cmd");
 
-        public ProcessManager(Action<string> appendToConsoleOutput, IPC ipc, 
-                            Action onSpooderRunStart, Action onSpooderRunStop, Action refreshSpooderInfo)
+        public ProcessManager(IPC ipc, Action onSpooderRunStart, Action onSpooderRunStop, Action refreshSpooderInfo)
         {
-            AppendToConsoleOutput = appendToConsoleOutput;
             _ipc = ipc;
             OnSpooderRunStart = onSpooderRunStart;
             OnSpooderRunStop = onSpooderRunStop;
@@ -47,30 +44,30 @@ namespace SpooderInstallerSharp.ViewModels
                 var nodeVersionDirs = Directory.GetDirectories(baseDir);
                 if (nodeVersionDirs.Length > 0)
                 {
-                    AppendToConsoleOutput($"Path: {nodeVersionDirs[0]}");
+                    ConsoleMessenger.AddDebugMessageF("Path: {0}", nodeVersionDirs[0]);
                     nodePath = Path.Combine(nodeVersionDirs[0], "node.exe");
                     npmPath = Path.Combine(nodeVersionDirs[0], "npm.cmd");
                 }
                 if (!File.Exists(nodePath))
                 {
-                    AppendToConsoleOutput("Node.js executable not found.");
+                    ConsoleMessenger.AddErrorMessage("Node.js executable not found.");
                 }
 
                 if (!File.Exists(npmPath))
                 {
-                    AppendToConsoleOutput("npm script not found.");
+                    ConsoleMessenger.AddErrorMessage("npm script not found.");
                 }
             }
             catch(Exception ex)
             {
-                AppendToConsoleOutput($"Error checking paths: {ex.Message}");
+                ConsoleMessenger.AddErrorMessage($"Error checking paths: {ex.Message}");
             }
             
         }
 
         public bool StartSpooder()
         {
-            AppendToConsoleOutput($"Attempting to start Spooder...");
+            ConsoleMessenger.AddInfoMessage("Attempting to start Spooder...");
             var appSettings = SettingsManager.LoadSettings();
             var scriptPath = appSettings.SpooderInstallationPath;
             CheckPaths();
@@ -99,11 +96,11 @@ namespace SpooderInstallerSharp.ViewModels
                             if (scripts["start"] != null)
                             {
                                 npmStartCommand = scripts["start"]?.ToString();
-                                AppendToConsoleOutput("Found start script, using it for startup.");
+                                ConsoleMessenger.AddSuccessMessage("Found start script, using it for startup.");
                             }
                             else
                             {
-                                AppendToConsoleOutput("No start script found! Aborting...");
+                                ConsoleMessenger.AddErrorMessage("No start script found! Aborting...");
                                 return false;
                             }
                         }
@@ -112,11 +109,11 @@ namespace SpooderInstallerSharp.ViewModels
                             if (scripts["dev"] != null)
                             {
                                 npmStartCommand = scripts["dev"]?.ToString();
-                                AppendToConsoleOutput("Using start script for startup.");
+                                ConsoleMessenger.AddSuccessMessage("Using dev script for startup.");
                             }
                             else
                             {
-                                AppendToConsoleOutput("No dev script found! Aborting...");
+                                ConsoleMessenger.AddErrorMessage("No dev script found! Aborting...");
                                 return false;
                             }
                         }else if(appSettings.SelectedMode == "Safe")
@@ -124,11 +121,11 @@ namespace SpooderInstallerSharp.ViewModels
                             if (scripts["safe"] != null)
                             {
                                 npmStartCommand = scripts["safe"]?.ToString();
-                                AppendToConsoleOutput("Using safe script for startup.");
+                                ConsoleMessenger.AddSuccessMessage("Using safe script for startup.");
                             }
                             else
                             {
-                                AppendToConsoleOutput("No safe script found! Aborting...");
+                                ConsoleMessenger.AddErrorMessage("No safe script found! Aborting...");
                                 return false;
                             }
                         }
@@ -137,11 +134,11 @@ namespace SpooderInstallerSharp.ViewModels
                             if (scripts["init"] != null)
                             {
                                 npmStartCommand = scripts["init"]?.ToString();
-                                AppendToConsoleOutput("Using init script for startup.");
+                                ConsoleMessenger.AddSuccessMessage("Using init script for startup.");
                             }
                             else
                             {
-                                AppendToConsoleOutput("No init script found! Aborting...");
+                                ConsoleMessenger.AddErrorMessage("No init script found! Aborting...");
                                 return false;
                             }
                         }
@@ -195,15 +192,15 @@ namespace SpooderInstallerSharp.ViewModels
                     }
                 }
 
-                AppendToConsoleOutput($"Using start script: {startScript}");
+                ConsoleMessenger.AddInfoMessageF("Using start script: {0}", startScript);
                 if (!string.IsNullOrEmpty(nodeArgs))
                 {
-                    AppendToConsoleOutput($"Using node arguments: {nodeArgs}");
+                    ConsoleMessenger.AddInfoMessageF("Using node arguments: {0}", nodeArgs);
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error reading package.json: {ex.Message}. Using default start script.");
+                ConsoleMessenger.AddWarningMessageF("Error reading package.json: {0}. Using default start script.", ex.Message);
             }
 
             // Determine if we need to use node directly or if the script is another command
@@ -247,7 +244,7 @@ namespace SpooderInstallerSharp.ViewModels
                     processStartInfo.EnvironmentVariables["PATH"] = $"{nodeModulesBin};{currentPath}";
                 }
 
-                AppendToConsoleOutput($"Starting with tsx: {tsxExecutable} {tsFile}");
+                ConsoleMessenger.AddInfoMessageF("Starting with tsx: {0} {1}", tsxExecutable, tsFile);
             }
             else if (useNodeDirectly)
             {
@@ -280,7 +277,7 @@ namespace SpooderInstallerSharp.ViewModels
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                AppendToConsoleOutput($"Starting Node.js directly: {nodePath} {arguments}");
+                ConsoleMessenger.AddInfoMessageF("Starting Node.js directly: {0} {1}", nodePath, arguments);
             }
             else
             {
@@ -317,7 +314,7 @@ namespace SpooderInstallerSharp.ViewModels
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                AppendToConsoleOutput($"Using npm to run {scriptName} script: {startScript}");
+                ConsoleMessenger.AddInfoMessageF("Using npm to run {0} script: {1}", scriptName, startScript);
             }
 
             // Create and start the process
@@ -330,7 +327,7 @@ namespace SpooderInstallerSharp.ViewModels
             // Set up event handlers
             spooderProcess.Exited += (sender, e) =>
             {
-                AppendToConsoleOutput("Spooder has exited.");
+                ConsoleMessenger.AddWarningMessage("Spooder has exited.");
                 _ipc.Cleanup();
                 OnSpooderRunStop();
             };
@@ -339,7 +336,8 @@ namespace SpooderInstallerSharp.ViewModels
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    AppendToConsoleOutput(e.Data);
+                    // Use plain message for real-time process output to avoid CSS formatting
+                    ConsoleMessenger.AddPlainMessage(e.Data);
                 }
             };
 
@@ -358,6 +356,7 @@ namespace SpooderInstallerSharp.ViewModels
             spooderProcessId = spooderProcess.Id;
             OnSpooderRunStart();
 
+            ConsoleMessenger.AddSuccessMessage("Spooder process started successfully!");
             return true;
         }
 
@@ -367,11 +366,14 @@ namespace SpooderInstallerSharp.ViewModels
             
             if (spooderProcess == null || spooderProcess.HasExited)
             {
+                ConsoleMessenger.AddWarningMessage("Spooder process is not running.");
                 return false;
             }
             
             try
             {
+                ConsoleMessenger.AddInfoMessage("Stopping Spooder process...");
+                
                 // Cancel any ongoing output reading
                 spooderProcess.CancelErrorRead();
                 Debug.WriteLine("Cancelled output reading");
@@ -385,11 +387,20 @@ namespace SpooderInstallerSharp.ViewModels
                 // Give Node.js a chance to shut down gracefully
                 bool exited = spooderProcess.WaitForExit(5000);
                 
+                if (exited)
+                {
+                    ConsoleMessenger.AddSuccessMessage("Spooder process stopped gracefully.");
+                }
+                else
+                {
+                    ConsoleMessenger.AddWarningMessage("Spooder process was forcefully terminated.");
+                }
+                
                 Debug.WriteLine($"Process exited: {spooderProcess.HasExited}");
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error stopping process: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error stopping process: {0}", ex.Message);
             }
             finally
             {

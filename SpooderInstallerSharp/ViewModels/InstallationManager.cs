@@ -8,7 +8,6 @@ namespace SpooderInstallerSharp.ViewModels
 {
     public class InstallationManager
     {
-        private readonly Action<string> AppendToConsoleOutput;
         private readonly GitOperations _gitOperations;
         private readonly ProcessManager _processManager;
         private readonly FileOperations _fileOperations;
@@ -17,12 +16,10 @@ namespace SpooderInstallerSharp.ViewModels
         private readonly Action OnSpooderUninstalled;
         private readonly Action OnSpooderCleaned;
 
-        public InstallationManager(Action<string> appendToConsoleOutput, GitOperations gitOperations, 
-                                 ProcessManager processManager, FileOperations fileOperations,
+        public InstallationManager(GitOperations gitOperations, ProcessManager processManager, FileOperations fileOperations,
                                  Action onSpooderInstallStart, Action onSpooderInstallComplete,
                                  Action onSpooderUninstalled, Action onSpooderCleaned)
         {
-            AppendToConsoleOutput = appendToConsoleOutput;
             _gitOperations = gitOperations;
             _processManager = processManager;
             _fileOperations = fileOperations;
@@ -37,11 +34,16 @@ namespace SpooderInstallerSharp.ViewModels
             var appSettings = SettingsManager.LoadSettings();
             var scriptPath = appSettings.SpooderInstallationPath;
             var selectedBranch = appSettings.SelectedBranch;
+            
+            ConsoleMessenger.AddInfoMessageF("Installing Spooder to {0} on branch {1}", scriptPath, selectedBranch);
             Logger.LogInfo($"Installing Spooder to {scriptPath} on branch {selectedBranch}");
             OnSpooderInstallStart();
+            
             _gitOperations.CloneRepository("https://github.com/GreySole/Spooder.git", scriptPath, branch: selectedBranch);
 
             _processManager.CheckPaths();
+
+            ConsoleMessenger.AddInfoMessage("Installing dependencies with npm...");
 
             var processStartInfo = new ProcessStartInfo(_processManager.npmPath, "install")
             {
@@ -58,14 +60,16 @@ namespace SpooderInstallerSharp.ViewModels
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
-                        AppendToConsoleOutput(e.Data);
+                        // Use plain message for real-time npm output to avoid CSS formatting
+                        ConsoleMessenger.AddPlainMessage(e.Data);
                     }
                 };
                 process.ErrorDataReceived += (sender, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
-                        AppendToConsoleOutput(e.Data);
+                        // Use plain message for real-time npm output to avoid CSS formatting
+                        ConsoleMessenger.AddPlainMessage(e.Data);
                     }
                 };
 
@@ -76,27 +80,27 @@ namespace SpooderInstallerSharp.ViewModels
 
                 if (process.ExitCode == 0)
                 {
-                    AppendToConsoleOutput("Dependencies installed successfully.");
+                    ConsoleMessenger.AddSuccessMessage("Dependencies installed successfully.");
 
                     // After npm install, run the build command if it exists
                     bool buildSuccess = await RunBuildCommand(scriptPath);
 
                     if (buildSuccess)
                     {
-                        AppendToConsoleOutput("Installation and build completed successfully.");
+                        ConsoleMessenger.AddSuccessMessage("Installation and build completed successfully.");
                         OnSpooderInstallComplete();
                         return true;
                     }
                     else
                     {
-                        AppendToConsoleOutput("Installation succeeded but build failed. You can still run Spooder in Dev mode.");
+                        ConsoleMessenger.AddWarningMessage("Installation succeeded but build failed. You can still run Spooder in Dev mode.");
                         OnSpooderInstallComplete();
                         return true;
                     }
                 }
                 else
                 {
-                    AppendToConsoleOutput("Installation failed.");
+                    ConsoleMessenger.AddErrorMessage("Installation failed.");
                     OnSpooderInstallComplete();
                     return false;
                 }
@@ -111,13 +115,13 @@ namespace SpooderInstallerSharp.ViewModels
                 // First, stop any running Spooder process
                 if (_processManager.spooderProcess != null && !_processManager.spooderProcess.HasExited)
                 {
-                    AppendToConsoleOutput("Stopping Spooder process before uninstallation...");
+                    ConsoleMessenger.AddInfoMessage("Stopping Spooder process before uninstallation...");
                     _processManager.StopSpooder();
                 }
 
                 if (Directory.Exists(appSettings.SpooderInstallationPath))
                 {
-                    AppendToConsoleOutput($"Removing Spooder installation from {appSettings.SpooderInstallationPath}...");
+                    ConsoleMessenger.AddInfoMessageF("Removing Spooder installation from {0}...", appSettings.SpooderInstallationPath);
 
                     // Wait a moment to ensure all file handles are closed
                     await Task.Delay(1000);
@@ -128,24 +132,24 @@ namespace SpooderInstallerSharp.ViewModels
                     if (success)
                     {
                         OnSpooderUninstalled();
-                        AppendToConsoleOutput("Spooder has been successfully uninstalled.");
+                        ConsoleMessenger.AddSuccessMessage("Spooder has been successfully uninstalled.");
                         return true;
                     }
                     else
                     {
-                        AppendToConsoleOutput("Failed to completely remove Spooder installation directory.");
+                        ConsoleMessenger.AddErrorMessage("Failed to completely remove Spooder installation directory.");
                         return false;
                     }
                 }
                 else
                 {
-                    AppendToConsoleOutput("Spooder installation directory not found. Nothing to uninstall.");
+                    ConsoleMessenger.AddWarningMessage("Spooder installation directory not found. Nothing to uninstall.");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error uninstalling Spooder: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error uninstalling Spooder: {0}", ex.Message);
                 return false;
             }
         }
@@ -158,7 +162,7 @@ namespace SpooderInstallerSharp.ViewModels
                 // First, stop any running Spooder process
                 if (_processManager.spooderProcess != null && !_processManager.spooderProcess.HasExited)
                 {
-                    AppendToConsoleOutput("Stopping Spooder process before cleaning...");
+                    ConsoleMessenger.AddInfoMessage("Stopping Spooder process before cleaning...");
                     _processManager.StopSpooder();
                 }
 
@@ -166,7 +170,7 @@ namespace SpooderInstallerSharp.ViewModels
 
                 if (Directory.Exists(userDataPath))
                 {
-                    AppendToConsoleOutput($"Removing Spooder User data from {appSettings.SpooderInstallationPath}...");
+                    ConsoleMessenger.AddInfoMessageF("Removing Spooder User data from {0}...", appSettings.SpooderInstallationPath);
 
                     // Wait a moment to ensure all file handles are closed
                     await Task.Delay(1000);
@@ -177,30 +181,31 @@ namespace SpooderInstallerSharp.ViewModels
                     if (success)
                     {
                         OnSpooderCleaned();
-                        AppendToConsoleOutput("Spooder has been successfully cleaned.");
+                        ConsoleMessenger.AddSuccessMessage("Spooder has been successfully cleaned.");
                         return true;
                     }
                     else
                     {
-                        AppendToConsoleOutput("Failed to clean Spooder entirely.");
+                        ConsoleMessenger.AddErrorMessage("Failed to clean Spooder entirely.");
                         return false;
                     }
                 }
                 else
                 {
-                    AppendToConsoleOutput("Spooder installation directory not found. Nothing to clean.");
+                    ConsoleMessenger.AddWarningMessage("Spooder installation directory not found. Nothing to clean.");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error cleaning Spooder: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error cleaning Spooder: {0}", ex.Message);
                 return false;
             }
         }
 
         public async Task<bool> RunNpmInstall(string workingDirectory)
         {
+            ConsoleMessenger.AddInfoMessage("Running npm install to update dependencies...");
             _processManager.CheckPaths();
 
             var processStartInfo = new ProcessStartInfo(_processManager.npmPath, "install --verbose")
@@ -218,14 +223,16 @@ namespace SpooderInstallerSharp.ViewModels
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
-                        AppendToConsoleOutput(e.Data);
+                        // Use plain message for real-time npm output to avoid CSS formatting
+                        ConsoleMessenger.AddPlainMessage(e.Data);
                     }
                 };
                 process.ErrorDataReceived += (sender, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
-                        AppendToConsoleOutput(e.Data);
+                        // Use plain message for real-time npm output to avoid CSS formatting
+                        ConsoleMessenger.AddPlainMessage(e.Data);
                     }
                 };
 
@@ -233,6 +240,15 @@ namespace SpooderInstallerSharp.ViewModels
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
                 await process.WaitForExitAsync();
+
+                if (process.ExitCode == 0)
+                {
+                    ConsoleMessenger.AddSuccessMessage("npm install completed successfully.");
+                }
+                else
+                {
+                    ConsoleMessenger.AddErrorMessageF("npm install failed with exit code {0}.", process.ExitCode);
+                }
 
                 return process.ExitCode == 0;
             }
@@ -256,7 +272,7 @@ namespace SpooderInstallerSharp.ViewModels
                     CreateNoWindow = true
                 };
 
-                AppendToConsoleOutput($"Building with npm: npm run build");
+                ConsoleMessenger.AddInfoMessage("Building with npm: npm run build");
 
                 using (var process = new Process { StartInfo = processStartInfo })
                 {
@@ -264,14 +280,16 @@ namespace SpooderInstallerSharp.ViewModels
                     {
                         if (!string.IsNullOrEmpty(e.Data))
                         {
-                            AppendToConsoleOutput(e.Data);
+                            // Use plain message for real-time build output to avoid CSS formatting
+                            ConsoleMessenger.AddPlainMessage(e.Data);
                         }
                     };
                     process.ErrorDataReceived += (sender, e) =>
                     {
                         if (!string.IsNullOrEmpty(e.Data))
                         {
-                            AppendToConsoleOutput(e.Data);
+                            // Use plain message for real-time build output to avoid CSS formatting
+                            ConsoleMessenger.AddPlainMessage(e.Data);
                         }
                     };
 
@@ -282,19 +300,19 @@ namespace SpooderInstallerSharp.ViewModels
 
                     if (process.ExitCode == 0)
                     {
-                        AppendToConsoleOutput("Build completed successfully.");
+                        ConsoleMessenger.AddSuccessMessage("Build completed successfully.");
                         return true;
                     }
                     else
                     {
-                        AppendToConsoleOutput($"Build failed with exit code {process.ExitCode}.");
+                        ConsoleMessenger.AddErrorMessageF("Build failed with exit code {0}.", process.ExitCode);
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error running build command: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error running build command: {0}", ex.Message);
                 return false;
             }
         }

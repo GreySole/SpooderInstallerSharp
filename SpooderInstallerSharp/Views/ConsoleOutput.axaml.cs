@@ -1,12 +1,14 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
+using SpooderInstallerSharp.Models;
 using SpooderInstallerSharp.ViewModels;
 using SpooderInstallerSharp.Views.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Reflection;
 
 namespace SpooderInstallerSharp.Views;
 
@@ -18,56 +20,68 @@ public partial class ConsoleOutput : UserControl
     {
         InitializeComponent();
         _consoleOutputPanel = this.FindControl<StackPanel>("ConsoleOutputPanel");
-        Debug.WriteLine($"initializing ConsoleOutput");
+        Debug.WriteLine($"Initializing ConsoleOutput");
     }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
 
-        if (DataContext is MainViewModel viewModel)
-        {
-            // Subscribe to collection changes
-            viewModel.ConsoleOutput.CollectionChanged += OnConsoleOutputChanged;
+        ConsoleMessenger.Initialize(AddConsoleItem);
 
-            // Process existing items
-            ProcessExistingItems(viewModel.ConsoleOutput);
-        }
+        // Display app version information after ConsoleMessenger is initialized
+        DisplayAppVersion();
     }
 
-    private void OnConsoleOutputChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void DisplayAppVersion()
     {
-        if (e.NewItems != null)
+        try
         {
-            foreach (var newItem in e.NewItems)
-            {
-                _ = Dispatcher.UIThread.InvokeAsync(() => AddConsoleItem(newItem?.ToString()));
-            }
+            var assembly = Assembly.GetExecutingAssembly();
+            var assemblyName = assembly.GetName();
+            
+            // Get the version from AssemblyVersion
+            var version = assemblyName.Version?.ToString() ?? "Unknown";
+            
+            // Get the file version if available (which includes pre-release info like "-test")
+            var fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
+            var fileVersion = fileVersionInfo.FileVersion ?? version;
+            
+            // Get the product name
+            var productName = "Spooder Manager";
+            
+            // Display the version information with styling
+            ConsoleMessenger.AddStyledMessage($"=== {productName} v{fileVersion} ===", "text-cyan", "text-bold");
+        }
+        catch (Exception ex)
+        {
+            // Fallback in case there's an issue getting version info
+            ConsoleMessenger.AddWarningMessageF("Could not retrieve app version: {0}", ex.Message);
+            ConsoleMessenger.AddInfoMessage("Spooder Manager - Version information unavailable");
         }
     }
 
-    private void ProcessExistingItems(IEnumerable<string> items)
-    {
-        foreach (var item in items)
-        {
-            AddConsoleItem(item);
-        }
-    }
-
-    private void AddConsoleItem(string? text)
+    public void AddConsoleItem(string? text, string[]? cssClasses = null)
     {
         if (string.IsNullOrEmpty(text) || _consoleOutputPanel == null)
             return;
 
-        var (processedText, matchedKeys) = ProcessLogText(text);
-        var textBlock = new ClickableTextBlock
+        // Ensure we're on the UI thread
+        if (!Dispatcher.UIThread.CheckAccess())
         {
-            Text = processedText,
+            Dispatcher.UIThread.InvokeAsync(() => AddConsoleItem(text, cssClasses));
+            return;
+        }
+
+        // Debug: Log what's being passed in
+        //Debug.WriteLine($"ConsoleOutput.AddConsoleItem called with text: '{text}' and CSS classes: [{(cssClasses != null ? string.Join(", ", cssClasses) : "null")}]");
+
+        var (processedText, matchedKeys) = ProcessLogText(text);
+        var textBlock = new ClickableTextBlock(processedText, cssClasses)
+        {
             TextWrapping = TextWrapping.Wrap,
             MatchedKeys = matchedKeys
         };
-
-        Logger.Log("Console", processedText);
 
         _consoleOutputPanel.Children.Add(textBlock);
     }
@@ -90,19 +104,5 @@ public partial class ConsoleOutput : UserControl
         }
 
         return (processedText, matchedKeys);
-    }
-
-    private void OnGoToSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var settingsView = new Settings();
-        var contentFrame = this.FindControl<ContentControl>("ContentFrame");
-        if (contentFrame != null)
-        {
-            contentFrame.Content = settingsView;
-        }
-        else
-        {
-            Debug.WriteLine("ContentFrame not found!");
-        }
     }
 }

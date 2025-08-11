@@ -1,4 +1,5 @@
-﻿using Avalonia.Controls;
+﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using SpooderInstallerSharp.JsonTypes;
@@ -15,7 +16,7 @@ public partial class MainWindow : UserControl
     private readonly Settings settingsView = new Settings();
     private bool settingsOpened = false;
     private bool _initialViewSet = false;
-    private const double NARROW_WIDTH_THRESHOLD = 600;
+    private const double BASE_NARROW_THRESHOLD = 400;
 
     public MainWindow()
     {
@@ -43,7 +44,7 @@ public partial class MainWindow : UserControl
         }
     }
 
-    private void OnSizeChanged(object? sender, Avalonia.Controls.SizeChangedEventArgs e)
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateUniformGridLayout(e.NewSize.Width);
     }
@@ -51,9 +52,22 @@ public partial class MainWindow : UserControl
     private void UpdateUniformGridLayout(double width)
     {
         var uniformGrid = this.FindControl<UniformGrid>("MainUniformGrid");
-        if (uniformGrid == null) return;
+        var spooderNameBlock = this.FindControl<TextBlock>("SpooderName");
+        
+        var spooderPetControl = this.FindControl<StackPanel>("SpooderPet");
+        var spooderPetWidth = 350;
+        
+        var processControlsControl = this.FindControl<ProcessControls>("ProcessControls");
+        var processControlWidth = 250;
 
-        if (width < NARROW_WIDTH_THRESHOLD)
+        var spooderNameWidth = 200;
+
+        var totalWidth = spooderPetWidth + spooderNameWidth + processControlWidth + 50;
+
+        if (uniformGrid == null) return;
+        if(spooderNameBlock == null) return;
+
+        if (width < totalWidth)
         {
             // Switch to rows for narrow windows
             uniformGrid.Rows = 3;
@@ -61,6 +75,7 @@ public partial class MainWindow : UserControl
 
             // Optionally adjust alignment for vertical layout
             uniformGrid.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+            spooderNameBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
         }
         else
         {
@@ -70,6 +85,7 @@ public partial class MainWindow : UserControl
 
             // Restore original alignment
             uniformGrid.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+            spooderNameBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
         }
     }
 
@@ -250,63 +266,77 @@ public partial class MainWindow : UserControl
         var red = (byte)((r + m) * 255);
         var green = (byte)((g + m) * 255);
         var blue = (byte)((b + m) * 255);
-        return new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(red, green, blue));
+        return new SolidColorBrush(Color.FromRgb(red, green, blue));
     }
 
     private void ApplyCustomSpooder(CustomSpooder customSpooder)
     {
-        if (customSpooder.Parts.Count == 0)
-            return;
-
-        // Define the control names in the display order (left to right in the UI)
-        var controlNames = new[]
+        if (DataContext is MainViewModel viewModel)
         {
-            "longlegleft", "shortlegleft", "bodyleft", "littleeyeleft", "bigeyeleft", 
-            "fangleft", "mouth", "fangright", "bigeyeright", "littleeyeright", 
-            "bodyright", "shortlegright", "longlegright"
-        };
-
-        // Clear all controls first (set to defaults)
-        foreach (var controlName in controlNames)
-        {
-            var textBlock = this.FindControl<TextBlock>(controlName);
-            if (textBlock != null)
+            if (viewModel._spooder?.spooderInfo?.themeVariables == null)
             {
-                textBlock.Text = "";
-                textBlock.Foreground = Avalonia.Media.Brush.Parse("#FFFFFF");
+                Debug.WriteLine("Spooder theme variables are null, cannot apply theme.");
+                return;
             }
-        }
+            var theme = viewModel._spooder.spooderInfo.themeVariables;
+        
+            if (customSpooder.Parts.Count == 0)
+                return;
 
-        // Apply each part from the array to the corresponding control
-        for (int i = 0; i < Math.Min(customSpooder.Parts.Count, controlNames.Length); i++)
-        {
-            var part = customSpooder.Parts[i];
-            var controlName = controlNames[i];
-            
-            var textBlock = this.FindControl<TextBlock>(controlName);
-            if (textBlock != null)
+            // Define the control names in the display order (left to right in the UI)
+            var controlNames = new[]
             {
-                // Set the part string (character/text)
-                textBlock.Text = part.partString ?? "";
-                
-                // Set the part color
-                if (!string.IsNullOrEmpty(part.partColor))
+                "longlegleft", "shortlegleft", "bodyleft", "littleeyeleft", "bigeyeleft",
+                "fangleft", "mouth", "fangright", "bigeyeright", "littleeyeright",
+                "bodyright", "shortlegright", "longlegright"
+            };
+
+            var spooderContainer = this.FindControl<StackPanel>("SpooderPet");
+            spooderContainer?.Children.Clear();
+
+            // Apply each part from the array to the corresponding control
+            for (int i = 0; i < customSpooder.Parts.Count; i++)
+            {
+                var part = customSpooder.Parts[i];
+                var controlName = controlNames[i];
+
+                var textBlock = new TextBlock();
+                textBlock.FontSize = 36;
+
+                if (textBlock != null)
                 {
-                    try
+                    textBlock.FontFamily = (FontFamily)Application.Current!.FindResource("RecursiveFont")!;
+                    textBlock.FontWeight = (FontWeight)theme.fontWeight;
+                    Debug.WriteLine($"Setting font spacing for {controlName} to {theme.letterSpacing}");
+                    textBlock.LetterSpacing = theme.letterSpacing * 16;
+                    var monoSpaceFeature = new FontFeature() { Tag = "MONO", Value = theme.isMonospacedFont ? 1 : 0 };
+                    textBlock.FontFeatures?.Add(monoSpaceFeature);
+
+
+
+                    // Set the part string (character/text)
+                    textBlock.Text = part.partString ?? "";
+
+                    // Set the part color
+                    if (!string.IsNullOrEmpty(part.partColor))
                     {
-                        textBlock.Foreground = Avalonia.Media.Brush.Parse(part.partColor);
+                        try
+                        {
+                            textBlock.Foreground = Brush.Parse(part.partColor);
+                        }
+                        catch (Exception ex)
+                        {
+                            // If color parsing fails, log the error and use default white
+                            Debug.WriteLine($"Failed to parse color '{part.partColor}' for part {i}: {ex.Message}");
+                            textBlock.Foreground = Brush.Parse("#FFFFFF");
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        // If color parsing fails, log the error and use default white
-                        Debug.WriteLine($"Failed to parse color '{part.partColor}' for part {i}: {ex.Message}");
-                        textBlock.Foreground = Avalonia.Media.Brush.Parse("#FFFFFF");
+                        // Default color if none specified
+                        textBlock.Foreground = Brush.Parse("#FFFFFF");
                     }
-                }
-                else
-                {
-                    // Default color if none specified
-                    textBlock.Foreground = Avalonia.Media.Brush.Parse("#FFFFFF");
+                    spooderContainer?.Children.Add(textBlock);
                 }
             }
         }

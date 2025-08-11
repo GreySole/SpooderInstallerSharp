@@ -33,38 +33,51 @@ namespace SpooderInstallerSharp.ViewModels
         private readonly ProcessManager _processManager;
         private readonly InstallationManager _installationManager;
         private readonly FileOperations _fileOperations;
-
-        private readonly Action<string> AppendToConsoleOutput;
+        
         public SpooderInfo? spooderInfo { get; set; }
 
-        public SpooderManager(Action<string> appendToConsoleOutput)
+        public SpooderManager()
         {
             Debug.WriteLine($"SpooderManager created");
-            AppendToConsoleOutput = appendToConsoleOutput;
 
-            // Initialize IPC first
-            _ipc = new IPC(appendToConsoleOutput);
+            // Initialize components - no longer need AppendToConsoleOutput
+            _ipc = new IPC();
             _ipc.MessageReceived += (sender, message) => OnMessageReceived(message);
 
-            // Initialize components
-            _gitOperations = new GitOperations(appendToConsoleOutput);
-            _fileOperations = new FileOperations(appendToConsoleOutput);
-            _processManager = new ProcessManager(appendToConsoleOutput, _ipc, 
-                                               OnSpooderRunStart, OnSpooderRunStop, refreshSpooderInfo);
-            _installationManager = new InstallationManager(appendToConsoleOutput, _gitOperations, _processManager, _fileOperations,
+            _gitOperations = new GitOperations();
+            _fileOperations = new FileOperations();
+            _processManager = new ProcessManager(_ipc, OnSpooderRunStart, OnSpooderRunStop, refreshSpooderInfo);
+            _installationManager = new InstallationManager(_gitOperations, _processManager, _fileOperations,
                                                          OnSpooderInstallStart, OnSpooderInstallComplete, 
                                                          OnSpooderUninstalled, OnSpooderCleaned);
 
+            // Perform initialization checks
+            PerformInitialChecks();
+        }
+
+        private void PerformInitialChecks()
+        {
             _processManager.CheckPaths();
 
             var nodeExists = File.Exists(_processManager.nodePath);
             var npmExists = File.Exists(_processManager.npmPath);
 
-            AppendToConsoleOutput($"Checking for Node.js: {(nodeExists ? "OK":"NOT FOUND")}");
-            AppendToConsoleOutput($"Checking for NPM: {(npmExists ? "OK" : "NOT FOUND")}");
+            ConsoleMessenger.AddInfoMessageIf(nodeExists, "Node.js found: OK");
+            ConsoleMessenger.AddWarningMessageIf(!nodeExists, "Node.js: NOT FOUND");
+            ConsoleMessenger.AddInfoMessageIf(npmExists, "NPM found: OK");
+            ConsoleMessenger.AddWarningMessageIf(!npmExists, "NPM: NOT FOUND");
 
             refreshSpooderInfo();
         }
+
+        /// <summary>
+        /// Semantic message methods for SpooderManager - using static ConsoleMessenger directly
+        /// </summary>
+        public void AddErrorMessage(string message) => ConsoleMessenger.AddErrorMessage(message);
+        public void AddWarningMessage(string message) => ConsoleMessenger.AddWarningMessage(message);
+        public void AddSuccessMessage(string message) => ConsoleMessenger.AddSuccessMessage(message);
+        public void AddInfoMessage(string message) => ConsoleMessenger.AddInfoMessage(message);
+        public void AddDebugMessage(string message) => ConsoleMessenger.AddDebugMessage(message);
 
         protected virtual void OnMessageReceived(string message)
         {
@@ -149,7 +162,7 @@ namespace SpooderInstallerSharp.ViewModels
 
                     if (installedVersion < new System.Version(0, 5, 0))
                     {
-                        AppendToConsoleOutput($"Don't use the legacy {installedVersion} version of Spooder. Switch to one of the 0.5.x branches!");
+                        ConsoleMessenger.AddWarningMessageF("Don't use the legacy {0} version of Spooder. Switch to one of the 0.5.x branches!", installedVersion);
                     }
                     else
                     {
@@ -157,7 +170,7 @@ namespace SpooderInstallerSharp.ViewModels
                         var spooderThemePath = Path.Combine(appSettings.SpooderInstallationPath, "user", "settings", "themes.json");
                         if(!File.Exists(spooderConfigPath) || !File.Exists(spooderThemePath))
                         {
-                            AppendToConsoleOutput($"Spooder configuration files not found. Please ensure Spooder is properly installed.");
+                            ConsoleMessenger.AddErrorMessage("Spooder configuration files not found. Please ensure Spooder is properly installed.");
                             return;
                         }
                         var spooderConfig = JObject.Parse(File.ReadAllText(spooderConfigPath));
@@ -173,8 +186,15 @@ namespace SpooderInstallerSharp.ViewModels
 
                         var hueToken = spooderTheme["webui"]?["hue"];
                         var satToken = spooderTheme["webui"]?["saturation"];
+                        var monoSpaceToken = spooderTheme["webui"]?["isMonospacedFont"];
+                        var fontWeightToken = spooderTheme["webui"]?["fontWeight"];
+                        var letterSpacingToken = spooderTheme["webui"]?["letterSpacing"];
                         spooderInfo.themeVariables.hue = (float)(hueToken != null ? hueToken.Value<float>() : 0.0);
                         spooderInfo.themeVariables.saturation = (float)(satToken != null ? satToken.Value<float>() : 0.0);
+                        spooderInfo.themeVariables.isDarkTheme = spooderTheme["webui"]?["isDarkTheme"]?.Value<bool>() ?? true;
+                        spooderInfo.themeVariables.isMonospacedFont = monoSpaceToken != null ? monoSpaceToken.Value<bool>() : false;
+                        spooderInfo.themeVariables.fontWeight = fontWeightToken != null ? fontWeightToken.Value<int>() : 500;
+                        spooderInfo.themeVariables.letterSpacing = letterSpacingToken != null ? letterSpacingToken.Value<int>() : 0;
 
                         spooderInfo.customSpooder = new CustomSpooder();
                         
@@ -182,7 +202,7 @@ namespace SpooderInstallerSharp.ViewModels
                         var spooderPetToken = spooderTheme["spooderpet"];
                         if (spooderPetToken != null && spooderPetToken.Type == JTokenType.Array)
                         {
-                            AppendToConsoleOutput("Spooder pet found, loading custom parts...");
+                            ConsoleMessenger.AddSuccessMessage("Spooder pet found, loading custom parts...");
                             var spooderPetArray = (JArray)spooderPetToken;
                             
                             // Iterate through the array of spooder part objects
@@ -204,7 +224,7 @@ namespace SpooderInstallerSharp.ViewModels
                         }
                         else
                         {
-                            AppendToConsoleOutput("Spooder pet not found or not an array, using default parts.");
+                            ConsoleMessenger.AddWarningMessage("Spooder pet not found or not an array, using default parts.");
                             // Fallback: If spooderpet is not an array, create default parts
                             var defaultParts = new[]
                             {
@@ -236,12 +256,12 @@ namespace SpooderInstallerSharp.ViewModels
                         OnSpooderThemeChanged();
                     }
 
-                    AppendToConsoleOutput($"Spooder is installed at {appSettings.SpooderInstallationPath}");
+                    ConsoleMessenger.AddSuccessMessageF("Spooder is installed at {0}", appSettings.SpooderInstallationPath);
                 }
             }
             else
             {
-                AppendToConsoleOutput($"Spooder is not installed. Click the install button on the top right.");
+                ConsoleMessenger.AddWarningMessage("Spooder is not installed. Click the install button on the top right.");
             }
         }
 
@@ -249,7 +269,7 @@ namespace SpooderInstallerSharp.ViewModels
         {
             try
             {
-                AppendToConsoleOutput($"Checking remote version on branch '{branch}'...");
+                ConsoleMessenger.AddInfoMessageF("Checking remote Spooder version on branch '{0}'...", branch);
 
                 // Download package.json directly from GitHub's raw content API
                 string packageJsonUrl = $"https://raw.githubusercontent.com/GreySole/Spooder/{branch}/package.json";
@@ -271,44 +291,44 @@ namespace SpooderInstallerSharp.ViewModels
                         {
                             if (remoteVersion > installedVersion)
                             {
-                                AppendToConsoleOutput($"Update available: Remote version {remoteVersion} is newer than installed version {installedVersion}");
+                                ConsoleMessenger.AddWarningMessageF("Update available: Remote version {0} is newer than installed version {1}", remoteVersion, installedVersion);
                                 OnUpdateAvailable(installedVersion.ToString(), remoteVersion.ToString(), branch ?? "unknown");
                             }
                             else if (remoteVersion == installedVersion)
                             {
-                                AppendToConsoleOutput($"You have the latest version ({installedVersion}) from branch '{branch}'");
+                                ConsoleMessenger.AddSuccessMessageF("You have the latest Spooder version ({0}) from branch '{1}'", installedVersion, branch);
                             }
                             else
                             {
-                                AppendToConsoleOutput($"Your version ({installedVersion}) is newer than remote version ({remoteVersion}) on branch '{branch}'");
+                                ConsoleMessenger.AddInfoMessageF("Your Spooder version ({0}) is newer than remote version ({1}) on branch '{2}'", installedVersion, remoteVersion, branch);
                             }
                         }
                         else
                         {
-                            AppendToConsoleOutput($"Could not parse remote version: {remoteVersionString}");
+                            ConsoleMessenger.AddErrorMessageF("Could not parse remote Spooder version: {0}", remoteVersionString);
                         }
                     }
                     else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
-                        AppendToConsoleOutput($"Branch '{branch}' not found or package.json doesn't exist on this branch");
+                        ConsoleMessenger.AddErrorMessageF("Branch '{0}' not found or package.json doesn't exist on this branch", branch);
                     }
                     else
                     {
-                        AppendToConsoleOutput($"Failed to fetch remote package.json: {response.StatusCode}");
+                        ConsoleMessenger.AddErrorMessageF("Failed to fetch remote package.json: {0}", response.StatusCode);
                     }
                 }
             }
             catch (HttpRequestException ex)
             {
-                AppendToConsoleOutput($"Network error checking remote version: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Network error checking remote version: {0}", ex.Message);
             }
             catch (TaskCanceledException)
             {
-                AppendToConsoleOutput("Request timed out while checking remote version");
+                ConsoleMessenger.AddWarningMessage("Request timed out while checking remote version");
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error checking remote version: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error checking remote version: {0}", ex.Message);
             }
         }
 
@@ -332,14 +352,14 @@ namespace SpooderInstallerSharp.ViewModels
 
             if (!Directory.Exists(spooderPath))
             {
-                AppendToConsoleOutput("Spooder installation not found. Please install first.");
+                ConsoleMessenger.AddErrorMessage("Spooder installation not found. Please install first.");
                 return false;
             }
 
             // Stop Spooder if it's running
             if (_processManager.spooderProcess != null && !_processManager.spooderProcess.HasExited)
             {
-                AppendToConsoleOutput("Stopping Spooder before update...");
+                ConsoleMessenger.AddInfoMessage("Stopping Spooder before update...");
                 _processManager.StopSpooder();
                 await Task.Delay(2000); // Wait for clean shutdown
             }
@@ -354,18 +374,17 @@ namespace SpooderInstallerSharp.ViewModels
                 }
 
                 // Run npm install to update dependencies
-                AppendToConsoleOutput("Updating dependencies...");
+                ConsoleMessenger.AddInfoMessage("Updating dependencies...");
                 await _installationManager.RunNpmInstall(spooderPath);
                 await _installationManager.RunBuildCommand(spooderPath);
 
-
-                AppendToConsoleOutput("Spooder update completed successfully!");
+                ConsoleMessenger.AddSuccessMessage("Spooder update completed successfully!");
 
                 return true;
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error updating Spooder: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error updating Spooder: {0}", ex.Message);
                 return false;
             }
         }

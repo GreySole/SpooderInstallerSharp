@@ -1,3 +1,4 @@
+using SpooderInstallerSharp.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,11 +8,9 @@ namespace SpooderInstallerSharp.ViewModels
 {
     public class FileOperations
     {
-        private readonly Action<string> AppendToConsoleOutput;
-
-        public FileOperations(Action<string> appendToConsoleOutput)
+        public FileOperations()
         {
-            AppendToConsoleOutput = appendToConsoleOutput;
+            // No longer need AppendToConsoleOutput - using static ConsoleMessenger
         }
 
         public async Task<bool> SmartDeleteDirectory(string path)
@@ -19,26 +18,26 @@ namespace SpooderInstallerSharp.ViewModels
             try
             {
                 // First attempt: try standard deletion
-                AppendToConsoleOutput("Attempting standard directory deletion...");
+                ConsoleMessenger.AddInfoMessage("Attempting standard directory deletion...");
                 Directory.Delete(path, true);
-                AppendToConsoleOutput("Standard deletion successful.");
+                ConsoleMessenger.AddSuccessMessage("Standard deletion successful.");
                 return true;
             }
             catch (UnauthorizedAccessException)
             {
-                AppendToConsoleOutput("Access denied. Attempting permission-aware deletion...");
+                ConsoleMessenger.AddWarningMessage("Access denied. Attempting permission-aware deletion...");
                 return await DeleteWithPermissionHandling(path);
             }
             catch (DirectoryNotFoundException)
             {
                 // Directory doesn't exist, consider it successfully deleted
-                AppendToConsoleOutput("Directory not found - already deleted.");
+                ConsoleMessenger.AddInfoMessage("Directory not found - already deleted.");
                 return true;
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Standard deletion failed: {ex.Message}");
-                AppendToConsoleOutput("Attempting permission-aware deletion...");
+                ConsoleMessenger.AddWarningMessageF("Standard deletion failed: {0}", ex.Message);
+                ConsoleMessenger.AddInfoMessage("Attempting permission-aware deletion...");
                 return await DeleteWithPermissionHandling(path);
             }
         }
@@ -69,17 +68,17 @@ namespace SpooderInstallerSharp.ViewModels
                         }
                         catch (Exception ex)
                         {
-                            AppendToConsoleOutput($"Could not delete root directory {rootPath}: {ex.Message}");
+                            ConsoleMessenger.AddErrorMessageF("Could not delete root directory {0}: {1}", rootPath, ex.Message);
                             return false;
                         }
                     }
 
-                    AppendToConsoleOutput($"Successfully deleted directory. Fixed permissions on {problematicFiles.Count} files and {problematicDirs.Count} directories.");
+                    ConsoleMessenger.AddSuccessMessageF("Successfully deleted directory. Fixed permissions on {0} files and {1} directories.", problematicFiles.Count, problematicDirs.Count);
                     return true;
                 }
                 catch (Exception ex)
                 {
-                    AppendToConsoleOutput($"Permission-aware deletion failed: {ex.Message}");
+                    ConsoleMessenger.AddErrorMessageF("Permission-aware deletion failed: {0}", ex.Message);
                     return false;
                 }
             });
@@ -97,14 +96,14 @@ namespace SpooderInstallerSharp.ViewModels
             {
                 if (HasRestrictiveAttributes(directory.Attributes))
                 {
-                    AppendToConsoleOutput($"Fixing permissions on directory: {path}");
+                    ConsoleMessenger.AddDebugMessageF("Fixing permissions on directory: {0}", path);
                     directory.Attributes = FileAttributes.Normal;
                     problematicDirs.Add(path);
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Warning: Could not fix directory permissions for {path}: {ex.Message}");
+                ConsoleMessenger.AddWarningMessageF("Could not fix directory permissions for {0}: {1}", path, ex.Message);
             }
 
             // Process files in this directory
@@ -116,20 +115,20 @@ namespace SpooderInstallerSharp.ViewModels
                     {
                         if (HasRestrictiveAttributes(file.Attributes))
                         {
-                            AppendToConsoleOutput($"Fixing permissions on file: {file.FullName}");
+                            ConsoleMessenger.AddDebugMessageF("Fixing permissions on file: {0}", file.FullName);
                             file.Attributes = FileAttributes.Normal;
                             problematicFiles.Add(file.FullName);
                         }
                     }
                     catch (Exception ex)
                     {
-                        AppendToConsoleOutput($"Warning: Could not fix file permissions for {file.FullName}: {ex.Message}");
+                        ConsoleMessenger.AddWarningMessageF("Could not fix file permissions for {0}: {1}", file.FullName, ex.Message);
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Warning: Could not enumerate files in {path}: {ex.Message}");
+                ConsoleMessenger.AddWarningMessageF("Could not enumerate files in {0}: {1}", path, ex.Message);
             }
 
             // Recursively process subdirectories
@@ -142,7 +141,7 @@ namespace SpooderInstallerSharp.ViewModels
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Warning: Could not enumerate subdirectories in {path}: {ex.Message}");
+                ConsoleMessenger.AddWarningMessageF("Could not enumerate subdirectories in {0}: {1}", path, ex.Message);
             }
         }
 
@@ -169,13 +168,13 @@ namespace SpooderInstallerSharp.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        AppendToConsoleOutput($"Warning: Could not delete file {file.FullName}: {ex.Message}");
+                        ConsoleMessenger.AddWarningMessageF("Could not delete file {0}: {1}", file.FullName, ex.Message);
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Warning: Error processing files in {path}: {ex.Message}");
+                ConsoleMessenger.AddWarningMessageF("Error processing files in {0}: {1}", path, ex.Message);
             }
 
             // Then delete subdirectories recursively
@@ -196,13 +195,13 @@ namespace SpooderInstallerSharp.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        AppendToConsoleOutput($"Warning: Could not delete directory {subDir.FullName}: {ex.Message}");
+                        ConsoleMessenger.AddWarningMessageF("Could not delete directory {0}: {1}", subDir.FullName, ex.Message);
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Warning: Error processing subdirectories in {path}: {ex.Message}");
+                ConsoleMessenger.AddWarningMessageF("Error processing subdirectories in {0}: {1}", path, ex.Message);
             }
         }
 

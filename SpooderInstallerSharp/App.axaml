@@ -8,6 +8,11 @@
 
     <Application.Styles>
         <FluentTheme />
+		<Style>
+			<Style.Resources>
+				<FontFamily x:Key="RecursiveFont">avares://SpooderInstallerSharp/Assets/Font/Recursive.ttf</FontFamily>
+			</Style.Resources>
+		</Style>
     </Application.Styles>
 	<TrayIcon.Icons>
 		<TrayIcons>

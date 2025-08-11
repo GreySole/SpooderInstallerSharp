@@ -26,16 +26,7 @@ public class MainViewModel : ReactiveObject
     {
         ReturnToConsole?.Invoke(this, EventArgs.Empty);
     }
-    
-    private StackPanel? _consoleOutputPanel;
-    public StackPanel? ConsoleOutputPanel
-    {
-        get => _consoleOutputPanel;
-        set
-        {
-            _consoleOutputPanel = value;
-        }
-    }
+   
 
     public SpooderManager _spooder;
 
@@ -95,7 +86,7 @@ public class MainViewModel : ReactiveObject
                 // Check if user wants to see update prompts
                 if (!appSettings.ShowUpdatePrompts)
                 {
-                    AppendToConsoleOutput($"Update available (v{e.NewVersion})");
+                    ConsoleMessenger.AddInfoMessageF("Update available (v{0})", e.NewVersion);
                     return;
                 }
 
@@ -114,34 +105,27 @@ public class MainViewModel : ReactiveObject
 
                 if (result == ButtonResult.Yes)
                 {
-                    AppendToConsoleOutput("User chose to update Spooder...");
+                    ConsoleMessenger.AddInfoMessage("User chose to update Spooder...");
                     OnReturnToConsole();
                     
                     bool success = await Task.Run(() => _spooder.UpdateSpooder());
                     if (success)
                     {
-                        Dispatcher.UIThread.Invoke(() =>
-                        {
-                            AppendToConsoleOutput("Spooder updated successfully!");
-                        });
-                        
+                        ConsoleMessenger.AddSuccessMessage("Spooder updated successfully!");
                     }
                     else
                     {
-                        Dispatcher.UIThread.Invoke(() =>
-                        {
-                            AppendToConsoleOutput("Spooder update failed.");
-                        });
+                        ConsoleMessenger.AddErrorMessage("Spooder update failed.");
                     }
                 }
                 else
                 {
-                    AppendToConsoleOutput("User declined to update Spooder.");
+                    ConsoleMessenger.AddInfoMessage("User declined to update Spooder.");
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error showing update dialog: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error showing update dialog: {0}", ex.Message);
             }
         });
     }
@@ -151,7 +135,7 @@ public class MainViewModel : ReactiveObject
         Debug.WriteLine($"MainViewModel created");
         appSettings = SettingsManager.LoadSettings();
         
-        _spooder = new SpooderManager(AppendToConsoleOutput);
+        _spooder = new SpooderManager();
 
         IsSpooderInstalled = _spooder.spooderInfo != null;
 
@@ -246,16 +230,6 @@ public class MainViewModel : ReactiveObject
         Logger.OpenLogFile();
     }
 
-    public void AppendToConsoleOutput(string text)
-    {
-        Debug.WriteLine(text);
-        if (!string.IsNullOrEmpty(text))
-        {
-            // Use Dispatcher only for thread safety, not UI manipulation
-            Dispatcher.UIThread.Post(() => ConsoleOutput.Add(text));
-        }
-    }
-
     private async Task InstallSpooderTask()
     {
         OnReturnToConsole();
@@ -314,11 +288,11 @@ public class MainViewModel : ReactiveObject
             };
 
             Process.Start(processStartInfo);
-            AppendToConsoleOutput($"Opening Spooder in default browser: {url}");
+            ConsoleMessenger.AddInfoMessageF("Opening Spooder in default browser: {0}", url);
         }
         catch (Exception ex)
         {
-            AppendToConsoleOutput($"Error opening browser: {ex.Message}");
+            ConsoleMessenger.AddErrorMessageF("Error opening browser: {0}", ex.Message);
         }
         
         await Task.CompletedTask;
@@ -332,7 +306,7 @@ public class MainViewModel : ReactiveObject
 
             if (!Directory.Exists(installPath))
             {
-                AppendToConsoleOutput($"Spooder installation folder not found: {installPath}");
+                ConsoleMessenger.AddErrorMessageF("Spooder installation folder not found: {0}", installPath);
                 return;
             }
 
@@ -341,16 +315,16 @@ public class MainViewModel : ReactiveObject
             if (processStartInfo != null)
             {
                 Process.Start(processStartInfo);
-                AppendToConsoleOutput($"Opening Spooder installation folder: {installPath}");
+                ConsoleMessenger.AddInfoMessageF("Opening Spooder installation folder: {0}", installPath);
             }
             else
             {
-                AppendToConsoleOutput("File manager not supported on this platform");
+                ConsoleMessenger.AddErrorMessage("File manager not supported on this platform");
             }
         }
         catch (Exception ex)
         {
-            AppendToConsoleOutput($"Error opening folder: {ex.Message}");
+            ConsoleMessenger.AddErrorMessageF("Error opening folder: {0}", ex.Message);
         }
         
         await Task.CompletedTask;
@@ -447,5 +421,27 @@ public class MainViewModel : ReactiveObject
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Test method to verify CSS classes are working - you can call this for debugging
+    /// </summary>
+    public void TestCssClasses()
+    {
+        // Test using the static methods directly
+        ConsoleMessenger.AddErrorMessage("This should be RED and BOLD (error message)");
+        ConsoleMessenger.AddWarningMessage("This should be ORANGE and SEMI-BOLD (warning message)");
+        ConsoleMessenger.AddSuccessMessage("This should be GREEN and SEMI-BOLD (success message)");
+        ConsoleMessenger.AddInfoMessage("This should be BLUE (info message)");
+        ConsoleMessenger.AddDebugMessage("This should be GRAY and ITALIC (debug message)");
+        
+        // Test custom styling via static methods
+        ConsoleMessenger.AddStyledMessage("This should be RED with YELLOW background", "text-red", "bg-yellow");
+        ConsoleMessenger.AddStyledMessage("This should be BLUE, BOLD and UNDERLINED", "text-blue", "text-bold", "text-underline");
+        
+        // Test conditional and formatted methods
+        ConsoleMessenger.AddErrorMessageIf(true, "This conditional error message should appear");
+        ConsoleMessenger.AddErrorMessageIf(false, "This conditional error message should NOT appear");
+        ConsoleMessenger.AddInfoMessageF("This is a formatted message with {0} and {1}", "parameter1", "parameter2");
     }
 }

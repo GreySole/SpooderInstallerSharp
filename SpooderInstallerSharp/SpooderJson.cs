@@ -27,6 +27,9 @@ namespace SpooderInstallerSharp.JsonTypes
         public float hue { get; set; }
         public float saturation { get; set; }
         public bool isDarkTheme { get; set; }
+        public bool isMonospacedFont { get; set; }
+        public int fontWeight { get; set; }
+        public float letterSpacing { get; set; }
     }
 
     public class CustomSpooder

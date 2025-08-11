@@ -10,11 +10,9 @@ namespace SpooderInstallerSharp.ViewModels
 {
     public class GitOperations
     {
-        private readonly Action<string> AppendToConsoleOutput;
-
-        public GitOperations(Action<string> appendToConsoleOutput)
+        public GitOperations()
         {
-            AppendToConsoleOutput = appendToConsoleOutput;
+            // No longer need AppendToConsoleOutput - using static ConsoleMessenger
         }
 
         public async Task<bool> UpdateRepository(string repoPath, string? targetBranch = null)
@@ -25,7 +23,7 @@ namespace SpooderInstallerSharp.ViewModels
             {
                 using (var repo = new Repository(repoPath))
                 {
-                    AppendToConsoleOutput("Updating Spooder repository...");
+                    ConsoleMessenger.AddInfoMessage("Updating Spooder repository...");
 
                     // Ensure user folder is properly ignored
                     await EnsureUserFolderIgnored(repoPath);
@@ -38,14 +36,14 @@ namespace SpooderInstallerSharp.ViewModels
                     
                     if (trackedChanges.Any())
                     {
-                        AppendToConsoleOutput($"Warning: Found {trackedChanges.Count} uncommitted changes to tracked files. These will be discarded during update.");
+                        ConsoleMessenger.AddWarningMessageF("Found {0} uncommitted changes to tracked files. These will be discarded during update.", trackedChanges.Count);
                         foreach (var change in trackedChanges.Take(5)) // Show first 5 changes
                         {
-                            AppendToConsoleOutput($"  {change.State}: {change.FilePath}");
+                            ConsoleMessenger.AddDebugMessageF("  {0}: {1}", change.State, change.FilePath);
                         }
                         if (trackedChanges.Count > 5)
                         {
-                            AppendToConsoleOutput($"  ... and {trackedChanges.Count - 5} more files");
+                            ConsoleMessenger.AddDebugMessageF("  ... and {0} more files", trackedChanges.Count - 5);
                         }
                     }
 
@@ -53,7 +51,7 @@ namespace SpooderInstallerSharp.ViewModels
                     var remote = repo.Network.Remotes["origin"];
                     var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
 
-                    AppendToConsoleOutput("Fetching latest changes...");
+                    ConsoleMessenger.AddInfoMessage("Fetching latest changes...");
                     Commands.Fetch(repo, remote.Name, refSpecs, null, "Fetching updates");
 
                     // Determine target branch
@@ -63,7 +61,7 @@ namespace SpooderInstallerSharp.ViewModels
                     var currentBranch = repo.Head.FriendlyName;
                     if (currentBranch != branchToUpdate)
                     {
-                        AppendToConsoleOutput($"Switching from branch '{currentBranch}' to '{branchToUpdate}'");
+                        ConsoleMessenger.AddInfoMessageF("Switching from branch '{0}' to '{1}'", currentBranch, branchToUpdate);
 
                         // Try to find the branch locally first
                         var localBranch = repo.Branches[branchToUpdate];
@@ -73,7 +71,7 @@ namespace SpooderInstallerSharp.ViewModels
                             var remoteBranchToTrack = repo.Branches[$"origin/{branchToUpdate}"];
                             if (remoteBranchToTrack == null)
                             {
-                                AppendToConsoleOutput($"Branch '{branchToUpdate}' not found on remote.");
+                                ConsoleMessenger.AddErrorMessageF("Branch '{0}' not found on remote.", branchToUpdate);
                                 return false;
                             }
 
@@ -94,14 +92,14 @@ namespace SpooderInstallerSharp.ViewModels
                     var remoteBranch = repo.Branches[remoteBranchName];
                     if (remoteBranch != null)
                     {
-                        AppendToConsoleOutput($"Resetting to latest {remoteBranchName}...");
+                        ConsoleMessenger.AddInfoMessageF("Resetting to latest {0}...", remoteBranchName);
                         repo.Reset(ResetMode.Hard, remoteBranch.Tip);
-                        AppendToConsoleOutput("Repository updated successfully.");
-                        AppendToConsoleOutput("User folder and other ignored files remain intact.");
+                        ConsoleMessenger.AddSuccessMessage("Repository updated successfully.");
+                        ConsoleMessenger.AddInfoMessage("User folder and other ignored files remain intact.");
                     }
                     else
                     {
-                        AppendToConsoleOutput($"Remote branch {remoteBranchName} not found.");
+                        ConsoleMessenger.AddErrorMessageF("Remote branch {0} not found.", remoteBranchName);
                         return false;
                     }
 
@@ -117,30 +115,30 @@ namespace SpooderInstallerSharp.ViewModels
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error updating repository: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error updating repository: {0}", ex.Message);
                 return false;
             }
         }
 
         public void CloneRepository(string repoUrl, string localPath, string branch = "main")
         {
-            AppendToConsoleOutput($"Cloning Spooder repository on {branch}...");
+            ConsoleMessenger.AddInfoMessageF("Cloning Spooder repository on {0}...", branch);
             var cloneOptions = new CloneOptions
             {
                 BranchName = branch,
                 OnCheckoutProgress = (path, completedSteps, totalSteps) =>
                 {
-                    AppendToConsoleOutput($"Checked out {completedSteps} of {totalSteps} steps.");
+                    ConsoleMessenger.AddDebugMessageF("Checked out {0} of {1} steps.", completedSteps, totalSteps);
                 }
             };
             try
             {
                 Repository.Clone(repoUrl, localPath, cloneOptions);
-                AppendToConsoleOutput($"Repository cloned to {localPath}");
+                ConsoleMessenger.AddSuccessMessageF("Repository cloned to {0}", localPath);
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Error cloning repository: {ex.Message}");
+                ConsoleMessenger.AddErrorMessageF("Error cloning repository: {0}", ex.Message);
             }
         }
 
@@ -167,22 +165,22 @@ namespace SpooderInstallerSharp.ViewModels
 
                 if (!userFolderIgnored)
                 {
-                    AppendToConsoleOutput("Adding user folder to .gitignore...");
+                    ConsoleMessenger.AddInfoMessage("Adding user folder to .gitignore...");
                     gitignoreContent.Add("");
                     gitignoreContent.Add("# User configuration and data");
                     gitignoreContent.Add("user/");
 
                     await File.WriteAllLinesAsync(gitignorePath, gitignoreContent);
-                    AppendToConsoleOutput("User folder added to .gitignore.");
+                    ConsoleMessenger.AddSuccessMessage("User folder added to .gitignore.");
                 }
                 else
                 {
-                    AppendToConsoleOutput("User folder is already in .gitignore.");
+                    ConsoleMessenger.AddDebugMessage("User folder is already in .gitignore.");
                 }
             }
             catch (Exception ex)
             {
-                AppendToConsoleOutput($"Warning: Could not update .gitignore: {ex.Message}");
+                ConsoleMessenger.AddWarningMessageF("Could not update .gitignore: {0}", ex.Message);
             }
         }
     }
