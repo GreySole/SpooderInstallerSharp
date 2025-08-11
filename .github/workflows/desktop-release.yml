@@ -93,10 +93,54 @@ jobs:
             $version = $version.Substring(1)
           }
 
+          # For assembly versions, we need a clean version without pre-release suffixes for AssemblyVersion
+          # but keep the full version for FileVersion
+          $assemblyVersion = $version -replace "-.*$", ""
+          $fileVersion = $version
+
           echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "ASSEMBLY_VERSION=$assemblyVersion" >> $env:GITHUB_OUTPUT
+          echo "FILE_VERSION=$fileVersion" >> $env:GITHUB_OUTPUT
           Write-Host "Using TAG_NAME: $tagName"
           Write-Host "Using VERSION: $version"
+          Write-Host "Using ASSEMBLY_VERSION: $assemblyVersion"
+          Write-Host "Using FILE_VERSION: $fileVersion"
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.DESKTOP_PROJ }}
+
+      - name: Build Core
+        run: >
+          dotnet build ${{ env.CORE_PROJ }}
+          --configuration Release
+          --no-restore
+          -p:AssemblyVersion=${{ steps.get_tag.outputs.ASSEMBLY_VERSION }}
+          -p:FileVersion=${{ steps.get_tag.outputs.FILE_VERSION }}
+          -p:Version=${{ steps.get_tag.outputs.FILE_VERSION }}
+
+      - name: Build Desktop
+        run: >
+          dotnet build ${{ env.DESKTOP_PROJ }}
+          --configuration Release
+          --no-restore
+          -p:AssemblyVersion=${{ steps.get_tag.outputs.ASSEMBLY_VERSION }}
+          -p:FileVersion=${{ steps.get_tag.outputs.FILE_VERSION }}
+          -p:Version=${{ steps.get_tag.outputs.FILE_VERSION }}
+
+      # Publish single-file, self-contained, win-x64; include native libs for self-extract
+      - name: Publish
+        run: >
+          dotnet publish ${{ env.DESKTOP_PROJ }}
+          --configuration Release
+          --no-restore
+          --runtime ${{ env.RUNTIME }}
+          --self-contained ${{ env.SELF_CONTAINED }}
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:AssemblyVersion=${{ steps.get_tag.outputs.ASSEMBLY_VERSION }}
+          -p:FileVersion=${{ steps.get_tag.outputs.FILE_VERSION }}
+          -p:Version=${{ steps.get_tag.outputs.FILE_VERSION }}
+          --output ${{ env.PUBLISH_DIR }}
 
       # Create Velopack installer
       - name: Create Velopack Installer
