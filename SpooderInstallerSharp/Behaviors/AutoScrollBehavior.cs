@@ -55,7 +55,7 @@ namespace SpooderInstallerSharp.Behaviors
 
         private void OnScrollViewerContentChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
         {
-            if (e.Property == ScrollViewer.ContentProperty)
+            if (e.Property == ContentControl.ContentProperty)
             {
                 DetachFromStackPanel();
                 AttachToStackPanel();

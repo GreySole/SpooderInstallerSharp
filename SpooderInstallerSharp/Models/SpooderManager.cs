@@ -2,14 +2,13 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SpooderInstallerSharp.JsonTypes;
-using SpooderInstallerSharp.Models;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace SpooderInstallerSharp.ViewModels
+namespace SpooderInstallerSharp.Models
 {
     public class SpooderManager
     {
@@ -150,7 +149,7 @@ namespace SpooderInstallerSharp.ViewModels
                 JObject packageJson = JObject.Parse(packageJsonContent);
                 spooderInfo = new SpooderInfo();
                 var spooderVersion = packageJson["version"]?.ToString();
-                if (System.Version.TryParse(spooderVersion, out var installedVersion))
+                if (Version.TryParse(spooderVersion, out var installedVersion))
                 {
                     spooderInfo.version = installedVersion.ToString();
 
@@ -160,7 +159,7 @@ namespace SpooderInstallerSharp.ViewModels
                         _ = CheckRemoteVersionAsync(appSettings.SelectedBranch, installedVersion);
                     }
 
-                    if (installedVersion < new System.Version(0, 5, 0))
+                    if (installedVersion < new Version(0, 5, 0))
                     {
                         ConsoleMessenger.AddWarningMessageF("Don't use the legacy {0} version of Spooder. Switch to one of the 0.5.x branches!", installedVersion);
                     }
@@ -265,7 +264,7 @@ namespace SpooderInstallerSharp.ViewModels
             }
         }
 
-        private async Task CheckRemoteVersionAsync(string? branch, System.Version installedVersion)
+        private async Task CheckRemoteVersionAsync(string? branch, Version installedVersion)
         {
             try
             {
@@ -287,7 +286,7 @@ namespace SpooderInstallerSharp.ViewModels
                         JObject remotePackageJson = JObject.Parse(remotePackageContent);
                         var remoteVersionString = remotePackageJson["version"]?.ToString();
 
-                        if (System.Version.TryParse(remoteVersionString, out var remoteVersion))
+                        if (Version.TryParse(remoteVersionString, out var remoteVersion))
                         {
                             if (remoteVersion > installedVersion)
                             {
@@ -350,6 +349,8 @@ namespace SpooderInstallerSharp.ViewModels
             var appSettings = SettingsManager.LoadSettings();
             var spooderPath = appSettings.SpooderInstallationPath;
 
+            OnSpooderInstallStart();
+
             if (!Directory.Exists(spooderPath))
             {
                 ConsoleMessenger.AddErrorMessage("Spooder installation not found. Please install first.");
@@ -386,6 +387,11 @@ namespace SpooderInstallerSharp.ViewModels
             {
                 ConsoleMessenger.AddErrorMessageF("Error updating Spooder: {0}", ex.Message);
                 return false;
+            }
+            finally
+            {
+                refreshSpooderInfo();
+                OnSpooderInstallComplete();
             }
         }
     }

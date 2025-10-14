@@ -1,11 +1,10 @@
-﻿using SpooderInstallerSharp.Models;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Threading.Tasks;
 
-namespace SpooderInstallerSharp.ViewModels
+namespace SpooderInstallerSharp.Models
 {
     public class IPC : IDisposable
     {
@@ -116,8 +115,8 @@ namespace SpooderInstallerSharp.ViewModels
             try
             {
                 var trimmed = line.Trim();
-                return (trimmed.StartsWith("{") && trimmed.EndsWith("}")) ||
-                       (trimmed.StartsWith("[") && trimmed.EndsWith("]"));
+                return trimmed.StartsWith("{") && trimmed.EndsWith("}") ||
+                       trimmed.StartsWith("[") && trimmed.EndsWith("]");
             }
             catch
             {

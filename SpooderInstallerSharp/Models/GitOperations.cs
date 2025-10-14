@@ -1,12 +1,11 @@
 using LibGit2Sharp;
-using SpooderInstallerSharp.Models;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-namespace SpooderInstallerSharp.ViewModels
+namespace SpooderInstallerSharp.Models
 {
     public class GitOperations
     {

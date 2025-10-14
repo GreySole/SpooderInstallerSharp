@@ -3,8 +3,7 @@ using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using SpooderInstallerSharp.ViewModels;
-using Logger = SpooderInstallerSharp.ViewModels.Logger;
+using Logger = SpooderInstallerSharp.Models.Logger;
 
 namespace SpooderInstallerSharp.Models
 {

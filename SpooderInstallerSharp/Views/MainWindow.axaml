@@ -56,7 +56,7 @@
 				</StackPanel>
 			<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
 				<views:ProcessControls x:Name="ProcessControls" DataContext="{Binding}" />
-				<ToggleButton Name="SettingsButton" icon:Attached.Icon="fa-spin fa-gear" FontSize="24" Click="OnSettingsClick">
+				<ToggleButton Name="SettingsButton" icon:Attached.Icon="fa-spin fa-gear" FontSize="24" Click="OnSettingsClick" ToolTip.Tip="Manager Settings">
 					
 				</ToggleButton>
 			</StackPanel>

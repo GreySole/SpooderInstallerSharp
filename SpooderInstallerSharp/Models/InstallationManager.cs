@@ -1,10 +1,9 @@
-using SpooderInstallerSharp.Models;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace SpooderInstallerSharp.ViewModels
+namespace SpooderInstallerSharp.Models
 {
     public class InstallationManager
     {

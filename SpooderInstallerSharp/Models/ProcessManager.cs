@@ -1,12 +1,11 @@
 using Avalonia.Threading;
 using Newtonsoft.Json.Linq;
-using SpooderInstallerSharp.Models;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
-namespace SpooderInstallerSharp.ViewModels
+namespace SpooderInstallerSharp.Models
 {
     public class ProcessManager
     {

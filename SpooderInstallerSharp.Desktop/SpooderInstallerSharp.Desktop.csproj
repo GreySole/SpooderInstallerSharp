@@ -9,7 +9,7 @@
 		<Nullable>enable</Nullable>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<!-- Node.js version to download -->
-		<NodeJSVersion>20.18.0</NodeJSVersion>
+		<NodeJSVersion>22.18.0</NodeJSVersion>
 	</PropertyGroup>
 
 	<!-- Windows-specific properties -->

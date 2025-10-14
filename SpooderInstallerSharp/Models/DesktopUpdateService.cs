@@ -1,8 +1,6 @@
 ﻿using Avalonia.Threading;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
-using SpooderInstallerSharp.Models;
-using SpooderInstallerSharp.ViewModels;
 using System;
 using System.Diagnostics;
 using System.IO;
