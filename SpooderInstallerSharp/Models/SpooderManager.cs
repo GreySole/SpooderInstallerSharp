@@ -32,6 +32,7 @@ namespace SpooderInstallerSharp.Models
         private readonly ProcessManager _processManager;
         private readonly InstallationManager _installationManager;
         private readonly FileOperations _fileOperations;
+        private readonly NodeJsUpdateManager _nodeJsUpdateManager;
         
         public SpooderInfo? spooderInfo { get; set; }
 
@@ -47,8 +48,9 @@ namespace SpooderInstallerSharp.Models
             _fileOperations = new FileOperations();
             _processManager = new ProcessManager(_ipc, OnSpooderRunStart, OnSpooderRunStop, refreshSpooderInfo);
             _installationManager = new InstallationManager(_gitOperations, _processManager, _fileOperations,
-                                                         OnSpooderInstallStart, OnSpooderInstallComplete, 
+                                                         OnSpooderInstallStart, OnSpooderInstallComplete,
                                                          OnSpooderUninstalled, OnSpooderCleaned);
+            _nodeJsUpdateManager = new NodeJsUpdateManager(_processManager);
 
             // Perform initialization checks
             PerformInitialChecks();
@@ -65,6 +67,15 @@ namespace SpooderInstallerSharp.Models
             ConsoleMessenger.AddWarningMessageIf(!nodeExists, "Node.js: NOT FOUND");
             ConsoleMessenger.AddInfoMessageIf(npmExists, "NPM found: OK");
             ConsoleMessenger.AddWarningMessageIf(!npmExists, "NPM: NOT FOUND");
+
+            if (nodeExists)
+            {
+                var appSettings = SettingsManager.LoadSettings();
+                if (appSettings.AutoCheckUpdates)
+                {
+                    _ = _nodeJsUpdateManager.CheckAndUpdateAsync();
+                }
+            }
 
             refreshSpooderInfo();
         }

@@ -9,8 +9,13 @@
 		<Nullable>enable</Nullable>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<!-- Node.js version to download -->
-		<NodeJSVersion>22.18.0</NodeJSVersion>
+		<NodeJSVersion>24.18.0</NodeJSVersion>
 	</PropertyGroup>
+
+	<!-- Expose NodeJSVersion to runtime code (used by NodeJsUpdateManager to know which Node.js major line to stay on) -->
+	<ItemGroup>
+		<AssemblyMetadata Include="NodeJSVersion" Value="$(NodeJSVersion)" />
+	</ItemGroup>
 
 	<!-- Windows-specific properties -->
 	<PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
