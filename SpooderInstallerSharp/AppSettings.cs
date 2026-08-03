@@ -8,9 +8,29 @@ namespace SpooderInstallerSharp.Models
     public class AppSettings
     {
         public string SpooderInstallationPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
-        public string SelectedBranch { get; set; } = "main";
+        public string SelectedBranch { get; set; } = "";
+        public string SelectedMode { get; set; } = "Normal";
         public bool AutoCheckUpdates { get; set; } = true;
+        public bool ShowUpdatePrompts { get; set; } = true;
+        public int ScreenWidth { get; set; } = 800;
+        public int ScreenHeight { get; set; } = 600;
+        public bool StartSpooderOnStartup { get; set; } = false;
+        public bool OpenSpooderOnStartup { get; set; } = true;
     };
+
+    public class UpdateAvailableEventArgs : EventArgs
+    {
+        public string CurrentVersion { get; }
+        public string NewVersion { get; }
+        public string Branch { get; }
+
+        public UpdateAvailableEventArgs(string currentVersion, string newVersion, string branch)
+        {
+            CurrentVersion = currentVersion;
+            NewVersion = newVersion;
+            Branch = branch;
+        }
+    }
 
     public static class SettingsManager
     {

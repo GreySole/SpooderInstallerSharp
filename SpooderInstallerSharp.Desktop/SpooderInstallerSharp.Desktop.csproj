@@ -1,24 +1,250 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <!--If you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
-    One for Windows with net8.0-windows TFM, one for MacOS with net8.0-macos and one with net8.0 TFM for Linux.-->
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<AssemblyTitle>Spooder Manager</AssemblyTitle>
+		<AssemblyDescription>Spooder Manager Application</AssemblyDescription>
+		<TargetFramework>net8.0</TargetFramework>
+		<RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+		<ApplicationIcon>Assets/favicon.ico</ApplicationIcon>
+		<Nullable>enable</Nullable>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<!-- Node.js version to download -->
+		<NodeJSVersion>24.18.0</NodeJSVersion>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
-    <PackageReference Include="Svg.Controls.Avalonia" Version="11.3.0.1" />
-    <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="11.3.0.1" />
-    <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.2" />
-    <PackageReference Include="Xaml.Behaviors.Interactions" Version="11.3.2" />
-    <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.2" />
-  </ItemGroup>
+	<!-- Expose NodeJSVersion to runtime code (used by NodeJsUpdateManager to know which Node.js major line to stay on) -->
+	<ItemGroup>
+		<AssemblyMetadata Include="NodeJSVersion" Value="$(NodeJSVersion)" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\SpooderInstallerSharp\SpooderInstallerSharp.csproj" />
-  </ItemGroup>
+	<!-- Windows-specific properties -->
+	<PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+		<OutputType>WinExe</OutputType>
+	</PropertyGroup>
+
+	<!-- Linux-specific properties -->
+	<PropertyGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.3" />
+		<PackageReference Include="Svg.Controls.Avalonia" Version="11.3.0.3" />
+		<PackageReference Include="Svg.Controls.Skia.Avalonia" Version="11.3.0.3" />
+		<PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.2" />
+		<PackageReference Include="Xaml.Behaviors.Interactions" Version="11.3.2" />
+		<PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.2" />
+		<PackageReference Include="Velopack" Version="0.0.1298" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\SpooderInstallerSharp\SpooderInstallerSharp.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<AvaloniaResource Include="Assets\favicon.ico">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</AvaloniaResource>
+	</ItemGroup>
+
+	<!-- Download Node.js binaries during publish only when RuntimeIdentifier is specified -->
+<Target Name="DownloadNodeJS" BeforeTargets="Publish" Condition="'$(RuntimeIdentifier)' != '' AND !Exists('$(PublishDir)nodejs\node.exe')">
+    <PropertyGroup>
+        <NodeJSUrl Condition="'$(RuntimeIdentifier)' == 'win-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-win-x64.zip</NodeJSUrl>
+        <NodeJSUrl Condition="'$(RuntimeIdentifier)' == 'linux-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSUrl>
+
+        <NodeJSExtractPath>$(PublishDir)nodejs</NodeJSExtractPath>
+        <NodeJSFileName Condition="'$(RuntimeIdentifier)' == 'win-x64'">node-v$(NodeJSVersion)-win-x64.zip</NodeJSFileName>
+        <NodeJSFileName Condition="'$(RuntimeIdentifier)' == 'linux-x64'">node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSFileName>
+        <NodeJSFilePath>$(PublishDir)$(NodeJSFileName)</NodeJSFilePath>
+        <NodeJSTempExtractPath>$(PublishDir)temp_nodejs</NodeJSTempExtractPath>
+    </PropertyGroup>
+
+    <Message Text="Downloading Node.js $(NodeJSVersion) for $(RuntimeIdentifier)..." Importance="high" />
+    <Message Text="Download URL: $(NodeJSUrl)" Importance="high" />
+    <Message Text="Extract Path: $(NodeJSExtractPath)" Importance="high" />
+    <Message Text="Archive Path: $(NodeJSFilePath)" Importance="high" />
+
+    <!-- Create the nodejs directory first -->
+    <MakeDir Directories="$(NodeJSExtractPath)" />
+    <MakeDir Directories="$(NodeJSTempExtractPath)" />
+
+    <!-- Download the archive only if we have a valid URL -->
+    <DownloadFile SourceUrl="$(NodeJSUrl)" DestinationFolder="$(PublishDir)" Condition="'$(NodeJSUrl)' != ''" />
+
+    <!-- Verify download with safer approach -->
+    <Message Text="Checking if archive was downloaded..." Importance="high" />
+    <Message Text="Archive downloaded successfully" Importance="high" Condition="Exists('$(NodeJSFilePath)')" />
+    <Message Text="Archive download failed - file not found" Importance="high" Condition="!Exists('$(NodeJSFilePath)')" />
+
+    <!-- Extract based on platform with better error handling -->
+
+    <!-- Windows extraction with improved PowerShell command -->
+    <Message Text="Starting Windows extraction..." Importance="high" Condition="'$(RuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')" />
+    
+    <!-- First extract to temp directory -->
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('$(NodeJSFilePath)', '$(NodeJSTempExtractPath)'); Write-Host 'Extraction to temp completed'; } catch { Write-Error $_.Exception.Message; throw }&quot;"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')"
+          ContinueOnError="false" />
+
+    <!-- Find the extracted folder and move contents -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+        <ExtractedNodeFolder Include="$(NodeJSTempExtractPath)\node-v$(NodeJSVersion)-win-x64\**\*" />
+    </ItemGroup>
+    
+    <!-- Copy files from the extracted folder to the final nodejs directory -->
+    <Copy SourceFiles="@(ExtractedNodeFolder)" 
+          DestinationFolder="$(NodeJSExtractPath)\%(RecursiveDir)" 
+          Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
+
+    <!-- Linux extraction -->
+    <Exec Command="which xz" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="true" IgnoreExitCode="true" />
+
+    <Message Text="Starting Linux extraction..." Importance="high" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+
+    <Exec Command="tar -xJf &quot;$(NodeJSFilePath)&quot; -C &quot;$(NodeJSExtractPath)&quot; --strip-components=1" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
+
+    <Message Text="Linux extraction completed successfully" Importance="high" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+
+    <!-- Verify extraction with safer file counting -->
+    <ItemGroup>
+        <ExtractedFiles Include="$(NodeJSExtractPath)\**\*" Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
+        <ExtractedFiles Include="$(NodeJSExtractPath)/**/*" Condition="'$(RuntimeIdentifier)' != 'win-x64'" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <ExtractedFileCount>@(ExtractedFiles->Count())</ExtractedFileCount>
+    </PropertyGroup>
+
+    <Message Text="Extraction verification - Files found: $(ExtractedFileCount)" Importance="high" />
+    <Message Text="Node.js binary location (Windows): $(NodeJSExtractPath)\node.exe" Importance="high" Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
+    <Message Text="Node.js binary location (Unix): $(NodeJSExtractPath)/bin/node" Importance="high" Condition="'$(RuntimeIdentifier)' != 'win-x64'" />
+
+    <!-- Verify that node.exe was actually extracted -->
+    <Message Text="Node.js executable found: $(NodeJSExtractPath)\node.exe" Importance="high" Condition="'$(RuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSExtractPath)\node.exe')" />
+    <Warning Text="Node.js executable NOT found at: $(NodeJSExtractPath)\node.exe" Condition="'$(RuntimeIdentifier)' == 'win-x64' AND !Exists('$(NodeJSExtractPath)\node.exe')" />
+
+    <!-- Clean up temporary files -->
+    <RemoveDir Directories="$(NodeJSTempExtractPath)" Condition="Exists('$(NodeJSTempExtractPath)')" />
+    <Delete Files="$(NodeJSFilePath)" Condition="Exists('$(NodeJSFilePath)')" />
+
+    <Message Text="Node.js extraction completed for $(RuntimeIdentifier)" Importance="high" />
+</Target>
+
+<!-- Download Node.js for regular builds (development) when RuntimeIdentifier is not set -->
+<Target Name="DownloadNodeJSForDevelopment" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == '' AND !Exists('$(OutputPath)nodejs\node.exe') AND !Exists('nodejs\node.exe')">
+    <PropertyGroup>
+        <!-- Default to Windows for development -->
+        <DevRuntimeIdentifier Condition="'$(OS)' == 'Windows_NT'">win-x64</DevRuntimeIdentifier>
+        <DevRuntimeIdentifier Condition="'$(OS)' != 'Windows_NT'">linux-x64</DevRuntimeIdentifier>
+        
+        <NodeJSUrl Condition="'$(DevRuntimeIdentifier)' == 'win-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-win-x64.zip</NodeJSUrl>
+        <NodeJSUrl Condition="'$(DevRuntimeIdentifier)' == 'linux-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSUrl>
+
+        <NodeJSExtractPath>$(OutputPath)nodejs</NodeJSExtractPath>
+        <NodeJSFileName Condition="'$(DevRuntimeIdentifier)' == 'win-x64'">node-v$(NodeJSVersion)-win-x64.zip</NodeJSFileName>
+        <NodeJSFileName Condition="'$(DevRuntimeIdentifier)' == 'linux-x64'">node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSFileName>
+        <NodeJSFilePath>$(OutputPath)$(NodeJSFileName)</NodeJSFilePath>
+        <NodeJSTempExtractPath>$(OutputPath)temp_nodejs</NodeJSTempExtractPath>
+    </PropertyGroup>
+
+    <Message Text="Downloading Node.js $(NodeJSVersion) for development ($(DevRuntimeIdentifier))..." Importance="high" />
+    <Message Text="Download URL: $(NodeJSUrl)" Importance="high" />
+    <Message Text="Extract Path: $(NodeJSExtractPath)" Importance="high" />
+    <Message Text="Archive Path: $(NodeJSFilePath)" Importance="high" />
+
+    <!-- Create the nodejs directory first -->
+    <MakeDir Directories="$(NodeJSExtractPath)" />
+    <MakeDir Directories="$(NodeJSTempExtractPath)" />
+
+    <!-- Download the archive only if we have a valid URL -->
+    <DownloadFile SourceUrl="$(NodeJSUrl)" DestinationFolder="$(OutputPath)" Condition="'$(NodeJSUrl)' != ''" />
+
+    <!-- Verify download with safer approach -->
+    <Message Text="Checking if archive was downloaded..." Importance="high" />
+    <Message Text="Archive downloaded successfully" Importance="high" Condition="Exists('$(NodeJSFilePath)')" />
+    <Message Text="Archive download failed - file not found" Importance="high" Condition="!Exists('$(NodeJSFilePath)')" />
+
+    <!-- Extract based on platform with better error handling -->
+
+    <!-- Windows extraction with improved PowerShell command -->
+    <Message Text="Starting Windows extraction..." Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')" />
+    
+    <!-- First extract to temp directory -->
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('$(NodeJSFilePath)', '$(NodeJSTempExtractPath)'); Write-Host 'Extraction to temp completed'; } catch { Write-Error $_.Exception.Message; throw }&quot;"
+          Condition="'$(DevRuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')"
+          ContinueOnError="false" />
+
+    <!-- Find the extracted folder and move contents -->
+    <ItemGroup Condition="'$(DevRuntimeIdentifier)' == 'win-x64'">
+        <ExtractedNodeFolder Include="$(NodeJSTempExtractPath)\node-v$(NodeJSVersion)-win-x64\**\*" />
+    </ItemGroup>
+    
+    <!-- Copy files from the extracted folder to the final nodejs directory -->
+    <Copy SourceFiles="@(ExtractedNodeFolder)" 
+          DestinationFolder="$(NodeJSExtractPath)\%(RecursiveDir)" 
+          Condition="'$(DevRuntimeIdentifier)' == 'win-x64'" />
+
+    <!-- Linux extraction -->
+    <Exec Command="which xz" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="true" IgnoreExitCode="true" />
+
+    <Message Text="Starting Linux extraction..." Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+
+    <Exec Command="tar -xJf &quot;$(NodeJSFilePath)&quot; -C &quot;$(NodeJSExtractPath)&quot; --strip-components=1" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
+
+    <Message Text="Linux extraction completed successfully" Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+
+    <!-- Verify extraction with safer file counting -->
+    <ItemGroup>
+        <ExtractedFiles Include="$(NodeJSExtractPath)\**\*" Condition="'$(DevRuntimeIdentifier)' == 'win-x64'" />
+        <ExtractedFiles Include="$(NodeJSExtractPath)/**/*" Condition="'$(DevRuntimeIdentifier)' != 'win-x64'" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <ExtractedFileCount>@(ExtractedFiles->Count())</ExtractedFileCount>
+    </PropertyGroup>
+
+    <Message Text="Extraction verification - Files found: $(ExtractedFileCount)" Importance="high" />
+    <Message Text="Node.js binary location (Windows): $(NodeJSExtractPath)\node.exe" Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'win-x64'" />
+    <Message Text="Node.js binary location (Unix): $(NodeJSExtractPath)/bin/node" Importance="high" Condition="'$(DevRuntimeIdentifier)' != 'win-x64'" />
+
+    <!-- Verify that node.exe was actually extracted -->
+    <Message Text="Node.js executable found: $(NodeJSExtractPath)\node.exe" Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSExtractPath)\node.exe')" />
+    <Warning Text="Node.js executable NOT found at: $(NodeJSExtractPath)\node.exe" Condition="'$(DevRuntimeIdentifier)' == 'win-x64' AND !Exists('$(NodeJSExtractPath)\node.exe')" />
+
+    <!-- Clean up temporary files -->
+    <RemoveDir Directories="$(NodeJSTempExtractPath)" Condition="Exists('$(NodeJSTempExtractPath)')" />
+    <Delete Files="$(NodeJSFilePath)" Condition="Exists('$(NodeJSFilePath)')" />
+
+    <Message Text="Node.js extraction completed for development ($(DevRuntimeIdentifier))" Importance="high" />
+</Target>
+
+	<!-- Alternative: Include existing nodejs folder if present (for development) -->
+	<Target Name="CopyNodeJSForDevelopment" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == '' AND Exists('nodejs') AND !Exists('$(OutputPath)nodejs\node.exe')">
+		<PropertyGroup>
+			<NodeJSSourcePath>nodejs</NodeJSSourcePath>
+			<NodeJSDestPath>$(OutputPath)nodejs</NodeJSDestPath>
+		</PropertyGroup>
+
+		<Message Text="Copying existing Node.js folder for development..." Importance="high" />
+		<Message Text="Source: $(NodeJSSourcePath)" Importance="high" />
+		<Message Text="Destination: $(NodeJSDestPath)" Importance="high" />
+
+		<!-- Create the destination directory -->
+		<MakeDir Directories="$(NodeJSDestPath)" />
+
+		<!-- Copy all nodejs files to output directory -->
+		<ItemGroup>
+			<NodeJSFiles Include="$(NodeJSSourcePath)\**\*" />
+		</ItemGroup>
+
+		<Copy SourceFiles="@(NodeJSFiles)" 
+			  DestinationFolder="$(NodeJSDestPath)\%(RecursiveDir)" 
+			  SkipUnchangedFiles="true" />
+
+		<Message Text="Node.js files copied successfully for development" Importance="high" />
+		<Message Text="Node.js executable available at: $(NodeJSDestPath)\node.exe" Importance="high" />
+	</Target>
+
 </Project>

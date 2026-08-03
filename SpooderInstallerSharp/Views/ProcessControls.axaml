@@ -10,11 +10,11 @@
              x:DataType="vm:MainViewModel">
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Grid.Row="1">
-			<Button icon:Attached.Icon="fa-solid fa-download" FontSize="24" Command="{Binding InstallSpooder}" IsVisible="{Binding IsSpooderNotInstalled}" />
-			<Button icon:Attached.Icon="fa-solid fa-sync" FontSize="24" Command="{Binding RestartSpooder}" IsVisible="{Binding IsSpooderRunning}"/>
-			<Button icon:Attached.Icon="fa-solid fa-arrow-up-right-from-square" FontSize="24" Command="{Binding OpenSpooder}" IsVisible="{Binding IsSpooderRunning}"/>
-			<Button icon:Attached.Icon="fa-solid fa-folder" FontSize="24" Command="{Binding BrowseSpooder}"/>
-			<Button icon:Attached.Icon="fa-solid fa-stop" FontSize="24" Command="{Binding StopSpooder}" IsVisible="{Binding IsSpooderRunning}"/>
-			<Button icon:Attached.Icon="fa-solid fa-play" FontSize="24" Command="{Binding StartSpooder}" IsVisible="{Binding IsSpooderRunnable}"/>
+			<Button icon:Attached.Icon="fa-solid fa-download" FontSize="24" Command="{Binding InstallSpooder}" IsVisible="{Binding IsSpooderNotInstalled}" ToolTip.Tip="Install Spooder"/>
+			<Button icon:Attached.Icon="fa-solid fa-sync" FontSize="24" Command="{Binding RestartSpooder}" IsVisible="{Binding IsSpooderRunning}" ToolTip.Tip="Restart Spooder"/>
+			<Button icon:Attached.Icon="fa-solid fa-arrow-up-right-from-square" FontSize="24" Command="{Binding OpenSpooder}" IsVisible="{Binding IsSpooderRunning}" ToolTip.Tip="Open WebUI"/>
+			<Button icon:Attached.Icon="fa-solid fa-folder" FontSize="24" Command="{Binding BrowseSpooder}" ToolTip.Tip="Browse Installation Folder"/>
+			<Button icon:Attached.Icon="fa-solid fa-stop" FontSize="24" Command="{Binding StopSpooder}" IsVisible="{Binding IsSpooderRunning}" ToolTip.Tip="Stop Spooder"/>
+			<Button icon:Attached.Icon="fa-solid fa-play" FontSize="24" Command="{Binding StartSpooder}" IsVisible="{Binding IsSpooderRunnable}" ToolTip.Tip="Start Spooder"/>
 		</StackPanel>
 </UserControl>

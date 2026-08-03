@@ -7,7 +7,22 @@
         xmlns:views="clr-namespace:SpooderInstallerSharp.Views"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="SpooderInstallerSharp.Views.MainWindow"
-		x:DataType="vm:MainViewModel">
+		x:DataType="vm:MainViewModel"
+		SizeChanged="OnSizeChanged">
+	<UserControl.Styles>
+		<Style Selector="ToggleButton:checked">
+			<Setter Property="Background" Value="DarkGreen"/>
+		</Style>
+		<Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Background" Value="DarkGreen"/>
+		</Style>
+		<Style Selector="ToggleButton:checked:pointerover">
+			<Setter Property="Background" Value="LimeGreen"/>
+		</Style>
+		<Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Background" Value="LimeGreen"/>
+		</Style>
+	</UserControl.Styles>
 	<Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto"/>
@@ -18,12 +33,10 @@
 		</Grid.ColumnDefinitions>
 
 		<Border x:Name="MainBorder" Padding="10" >
-		<UniformGrid Columns="3" HorizontalAlignment="Stretch" VerticalAlignment="Center">
-			<StackPanel Orientation="Horizontal">
-				<TextBlock Text="Spooder Name" x:Name="SpooderName" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-			</StackPanel>
+		<UniformGrid x:Name="MainUniformGrid" Columns="3" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+			<TextBlock Text="Spooder Name" x:Name="SpooderName" FontFamily="{StaticResource RecursiveFont}" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 				<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" x:Name="SpooderPet">
-					<TextBlock Text="/╲" x:Name="longlegleft" FontSize="36"/>
+					<TextBlock Text="/╲" x:Name="longlegleft" FontSize="36" />
 					<TextBlock Text="/\" x:Name="shortlegleft" FontSize="36"/>
 					<TextBlock Text="(" x:Name="bodyleft" FontSize="36"/>
 					<TextBlock Text="º" x:Name="littleeyeleft" FontSize="36"/>
@@ -42,8 +55,10 @@
 					<TextBlock Text="╱\" x:Name="longlegright" FontSize="36"/>
 				</StackPanel>
 			<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-				<views:ProcessControls DataContext="{Binding}" />
-				<Button icon:Attached.Icon="fa-spin fa-gear" FontSize="24" Click="OnSettingsClick"/>
+				<views:ProcessControls x:Name="ProcessControls" DataContext="{Binding}" />
+				<ToggleButton Name="SettingsButton" icon:Attached.Icon="fa-spin fa-gear" FontSize="24" Click="OnSettingsClick" ToolTip.Tip="Manager Settings">
+					
+				</ToggleButton>
 			</StackPanel>
 		</UniformGrid>
 		</Border>

@@ -8,16 +8,17 @@ namespace SpooderInstallerSharp.JsonTypes
 {
     public class SpooderInfo
     {
-        public string name { get; set; }
-        public string version { get; set; }
-        public CustomSpooder customSpooder { get; set; }
-        public SpooderTheme themeVariables { get; set; }
+        public string? name { get; set; }
+        public string? version { get; set; }
+        public CustomSpooder? customSpooder { get; set; }
+        public SpooderTheme? themeVariables { get; set; }
+        public int? host_port { get; set; }
     }
 
     public class PackageJson
     {
-        public string name { get; set; }
-        public string version { get; set; }
+        public string? name { get; set; }
+        public string? version { get; set; }
         // Add other properties as needed
     }
 
@@ -25,29 +26,20 @@ namespace SpooderInstallerSharp.JsonTypes
     {
         public float hue { get; set; }
         public float saturation { get; set; }
-        public Boolean isDarkTheme { get; set; }
+        public bool isDarkTheme { get; set; }
+        public bool isMonospacedFont { get; set; }
+        public int fontWeight { get; set; }
+        public float letterSpacing { get; set; }
     }
 
     public class CustomSpooder
     {
-        public CustomSpooderParts parts { get; set; }
-        public CustomSpooderParts colors { get; set; }
+        public List<SpooderPart> Parts { get; set; } = new List<SpooderPart>();
     }
 
-    public class CustomSpooderParts
+    public class SpooderPart
     {
-        public string bigeyeleft { get; set; }
-        public string bigeyeright { get; set; }
-        public string littleeyeleft { get; set; }
-        public string littleeyeright { get; set; }
-        public string fangleft { get; set; }
-        public string fangright { get; set; }
-        public string mouth { get; set; }
-        public string bodyleft { get; set; }
-        public string bodyright { get; set; }
-        public string shortlegleft { get; set; }
-        public string shortlegright { get; set; }
-        public string longlegleft { get; set; }
-        public string longlegright { get; set; }
+        public string partString { get; set; } = string.Empty;
+        public string partColor { get; set; } = string.Empty;
     }
 }
