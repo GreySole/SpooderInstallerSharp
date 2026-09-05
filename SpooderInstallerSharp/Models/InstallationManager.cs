@@ -52,6 +52,7 @@ namespace SpooderInstallerSharp.Models
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            _processManager.PrependNodeBinToPath(processStartInfo);
 
             using (var process = new Process { StartInfo = processStartInfo })
             {
@@ -215,6 +216,7 @@ namespace SpooderInstallerSharp.Models
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            _processManager.PrependNodeBinToPath(processStartInfo);
 
             using (var process = new Process { StartInfo = processStartInfo })
             {
@@ -270,6 +272,7 @@ namespace SpooderInstallerSharp.Models
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
+                _processManager.PrependNodeBinToPath(processStartInfo);
 
                 ConsoleMessenger.AddInfoMessage("Building with npm: npm run build");
 

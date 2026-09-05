@@ -107,7 +107,8 @@ class Program
             {
                 try
                 {
-                    _pipeServer = new NamedPipeServerStream(PipeName, PipeDirection.In, 1, PipeTransmissionMode.Message);
+                    // Byte mode (not Message) so this works on Linux too; message framing isn't needed since we delimit with WriteLine/ReadLineAsync.
+                    _pipeServer = new NamedPipeServerStream(PipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte);
                     await _pipeServer.WaitForConnectionAsync();
 
                     using var reader = new StreamReader(_pipeServer);

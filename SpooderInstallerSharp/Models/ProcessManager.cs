@@ -18,8 +18,12 @@ namespace SpooderInstallerSharp.Models
         private int spooderProcessId = -1;
 
         static readonly string? exeDir = Path.GetDirectoryName(Environment.ProcessPath);
-        public string nodePath = Path.Combine(exeDir ?? "", "nodejs", "node.exe");
-        public string npmPath = Path.Combine(exeDir ?? "", "nodejs", "npm.cmd");
+        // Windows bundles node.exe/npm.cmd directly under nodejs\; the Linux tarball nests them under nodejs/bin/ with no extension.
+        static readonly string nodeExeName = OperatingSystem.IsWindows() ? "node.exe" : "node";
+        static readonly string npmExeName = OperatingSystem.IsWindows() ? "npm.cmd" : "npm";
+        static readonly string nodeBinSubdir = OperatingSystem.IsWindows() ? "" : "bin";
+        public string nodePath = Path.Combine(exeDir ?? "", "nodejs", nodeBinSubdir, nodeExeName);
+        public string npmPath = Path.Combine(exeDir ?? "", "nodejs", nodeBinSubdir, npmExeName);
 
         public ProcessManager(IPC ipc, Action onSpooderRunStart, Action onSpooderRunStop, Action refreshSpooderInfo)
         {
@@ -29,13 +33,35 @@ namespace SpooderInstallerSharp.Models
             RefreshSpooderInfo = refreshSpooderInfo;
         }
 
+        /// <summary>
+        /// On Linux, npm/npx/tsx are symlinks to JS files starting with '#!/usr/bin/env node',
+        /// which only resolves if nodejs/bin is on the child process's PATH (Windows' node.exe/npm.cmd
+        /// don't need this since npm.cmd locates node.exe relative to its own folder instead of via PATH).
+        /// </summary>
+        public void PrependNodeBinToPath(ProcessStartInfo processStartInfo)
+        {
+            var nodeBinDir = Path.GetDirectoryName(nodePath);
+            if (string.IsNullOrEmpty(nodeBinDir))
+            {
+                return;
+            }
+
+            string? currentPath = processStartInfo.EnvironmentVariables.ContainsKey("PATH")
+                ? processStartInfo.EnvironmentVariables["PATH"]
+                : Environment.GetEnvironmentVariable("PATH");
+
+            processStartInfo.EnvironmentVariables["PATH"] = string.IsNullOrEmpty(currentPath)
+                ? nodeBinDir
+                : $"{nodeBinDir}{Path.PathSeparator}{currentPath}";
+        }
+
         public void CheckPaths()
         {
             var baseDir = Path.Combine(exeDir ?? "", "nodejs");
-            if (File.Exists(Path.Combine(baseDir, "node.exe")))
+            if (File.Exists(Path.Combine(baseDir, nodeBinSubdir, nodeExeName)))
             {
-                nodePath = Path.Combine(baseDir, "node.exe");
-                npmPath = Path.Combine(baseDir, "npm.cmd");
+                nodePath = Path.Combine(baseDir, nodeBinSubdir, nodeExeName);
+                npmPath = Path.Combine(baseDir, nodeBinSubdir, npmExeName);
                 return;
             }
             try
@@ -44,8 +70,8 @@ namespace SpooderInstallerSharp.Models
                 if (nodeVersionDirs.Length > 0)
                 {
                     ConsoleMessenger.AddDebugMessageF("Path: {0}", nodeVersionDirs[0]);
-                    nodePath = Path.Combine(nodeVersionDirs[0], "node.exe");
-                    npmPath = Path.Combine(nodeVersionDirs[0], "npm.cmd");
+                    nodePath = Path.Combine(nodeVersionDirs[0], nodeBinSubdir, nodeExeName);
+                    npmPath = Path.Combine(nodeVersionDirs[0], nodeBinSubdir, npmExeName);
                 }
                 if (!File.Exists(nodePath))
                 {
@@ -212,7 +238,7 @@ namespace SpooderInstallerSharp.Models
             if (useTsx)
             {
                 // Handle tsx TypeScript execution
-                string tsxExecutable = Path.Combine(scriptPath, "node_modules", ".bin", "tsx.cmd");
+                string tsxExecutable = Path.Combine(scriptPath, "node_modules", ".bin", OperatingSystem.IsWindows() ? "tsx.cmd" : "tsx");
 
                 // Fallback to global tsx if local not found
                 if (!File.Exists(tsxExecutable))
@@ -240,8 +266,9 @@ namespace SpooderInstallerSharp.Models
                     string? currentPath = processStartInfo.EnvironmentVariables.ContainsKey("PATH")
                         ? processStartInfo.EnvironmentVariables["PATH"]
                         : Environment.GetEnvironmentVariable("PATH");
-                    processStartInfo.EnvironmentVariables["PATH"] = $"{nodeModulesBin};{currentPath}";
+                    processStartInfo.EnvironmentVariables["PATH"] = $"{nodeModulesBin}{Path.PathSeparator}{currentPath}";
                 }
+                PrependNodeBinToPath(processStartInfo);
 
                 ConsoleMessenger.AddInfoMessageF("Starting with tsx: {0} {1}", tsxExecutable, tsFile);
             }
@@ -276,6 +303,7 @@ namespace SpooderInstallerSharp.Models
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
+                PrependNodeBinToPath(processStartInfo);
                 ConsoleMessenger.AddInfoMessageF("Starting Node.js directly: {0} {1}", nodePath, arguments);
             }
             else
@@ -313,6 +341,7 @@ namespace SpooderInstallerSharp.Models
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
+                PrependNodeBinToPath(processStartInfo);
                 ConsoleMessenger.AddInfoMessageF("Using npm to run {0} script: {1}", scriptName, startScript);
             }
 

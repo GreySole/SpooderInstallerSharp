@@ -4,7 +4,7 @@
 		<AssemblyTitle>Spooder Manager</AssemblyTitle>
 		<AssemblyDescription>Spooder Manager Application</AssemblyDescription>
 		<TargetFramework>net8.0</TargetFramework>
-		<RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+		<RuntimeIdentifiers>win-x64;linux-x64;linux-arm64</RuntimeIdentifiers>
 		<ApplicationIcon>Assets/favicon.ico</ApplicationIcon>
 		<Nullable>enable</Nullable>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
@@ -23,13 +23,13 @@
 		<OutputType>WinExe</OutputType>
 	</PropertyGroup>
 
-	<!-- Linux-specific properties -->
-	<PropertyGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+	<!-- Linux-specific properties (any linux-* RID) -->
+	<PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('linux'))">
 		<OutputType>Exe</OutputType>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Avalonia.Desktop" Version="11.3.3" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
 		<PackageReference Include="Svg.Controls.Avalonia" Version="11.3.0.3" />
 		<PackageReference Include="Svg.Controls.Skia.Avalonia" Version="11.3.0.3" />
 		<PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.2" />
@@ -49,14 +49,16 @@
 	</ItemGroup>
 
 	<!-- Download Node.js binaries during publish only when RuntimeIdentifier is specified -->
-<Target Name="DownloadNodeJS" BeforeTargets="Publish" Condition="'$(RuntimeIdentifier)' != '' AND !Exists('$(PublishDir)nodejs\node.exe')">
+<Target Name="DownloadNodeJS" BeforeTargets="Publish" Condition="'$(RuntimeIdentifier)' != '' AND !Exists('$(PublishDir)nodejs\node.exe') AND !Exists('$(PublishDir)nodejs/bin/node')">
     <PropertyGroup>
         <NodeJSUrl Condition="'$(RuntimeIdentifier)' == 'win-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-win-x64.zip</NodeJSUrl>
         <NodeJSUrl Condition="'$(RuntimeIdentifier)' == 'linux-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSUrl>
+        <NodeJSUrl Condition="'$(RuntimeIdentifier)' == 'linux-arm64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-linux-arm64.tar.xz</NodeJSUrl>
 
         <NodeJSExtractPath>$(PublishDir)nodejs</NodeJSExtractPath>
         <NodeJSFileName Condition="'$(RuntimeIdentifier)' == 'win-x64'">node-v$(NodeJSVersion)-win-x64.zip</NodeJSFileName>
         <NodeJSFileName Condition="'$(RuntimeIdentifier)' == 'linux-x64'">node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSFileName>
+        <NodeJSFileName Condition="'$(RuntimeIdentifier)' == 'linux-arm64'">node-v$(NodeJSVersion)-linux-arm64.tar.xz</NodeJSFileName>
         <NodeJSFilePath>$(PublishDir)$(NodeJSFileName)</NodeJSFilePath>
         <NodeJSTempExtractPath>$(PublishDir)temp_nodejs</NodeJSTempExtractPath>
     </PropertyGroup>
@@ -84,9 +86,7 @@
     <Message Text="Starting Windows extraction..." Importance="high" Condition="'$(RuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')" />
     
     <!-- First extract to temp directory -->
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('$(NodeJSFilePath)', '$(NodeJSTempExtractPath)'); Write-Host 'Extraction to temp completed'; } catch { Write-Error $_.Exception.Message; throw }&quot;"
-          Condition="'$(RuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')"
-          ContinueOnError="false" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('$(NodeJSFilePath)', '$(NodeJSTempExtractPath)'); Write-Host 'Extraction to temp completed'; } catch { Write-Error $_.Exception.Message; throw }&quot;" Condition="'$(RuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
 
     <!-- Find the extracted folder and move contents -->
     <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
@@ -94,18 +94,16 @@
     </ItemGroup>
     
     <!-- Copy files from the extracted folder to the final nodejs directory -->
-    <Copy SourceFiles="@(ExtractedNodeFolder)" 
-          DestinationFolder="$(NodeJSExtractPath)\%(RecursiveDir)" 
-          Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
+    <Copy SourceFiles="@(ExtractedNodeFolder)" DestinationFolder="$(NodeJSExtractPath)\%(RecursiveDir)" Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
 
-    <!-- Linux extraction -->
-    <Exec Command="which xz" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="true" IgnoreExitCode="true" />
+    <!-- Linux extraction (any linux-* RID) -->
+    <Exec Command="which xz" Condition="$(RuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" ContinueOnError="true" IgnoreExitCode="true" />
 
-    <Message Text="Starting Linux extraction..." Importance="high" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+    <Message Text="Starting Linux extraction..." Importance="high" Condition="$(RuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" />
 
-    <Exec Command="tar -xJf &quot;$(NodeJSFilePath)&quot; -C &quot;$(NodeJSExtractPath)&quot; --strip-components=1" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
+    <Exec Command="tar -xJf &quot;$(NodeJSFilePath)&quot; -C &quot;$(NodeJSExtractPath)&quot; --strip-components=1" Condition="$(RuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
 
-    <Message Text="Linux extraction completed successfully" Importance="high" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+    <Message Text="Linux extraction completed successfully" Importance="high" Condition="$(RuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" />
 
     <!-- Verify extraction with safer file counting -->
     <ItemGroup>
@@ -114,7 +112,7 @@
     </ItemGroup>
 
     <PropertyGroup>
-        <ExtractedFileCount>@(ExtractedFiles->Count())</ExtractedFileCount>
+        <ExtractedFileCount>@(ExtractedFiles-&gt;Count())</ExtractedFileCount>
     </PropertyGroup>
 
     <Message Text="Extraction verification - Files found: $(ExtractedFileCount)" Importance="high" />
@@ -133,18 +131,22 @@
 </Target>
 
 <!-- Download Node.js for regular builds (development) when RuntimeIdentifier is not set -->
-<Target Name="DownloadNodeJSForDevelopment" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == '' AND !Exists('$(OutputPath)nodejs\node.exe') AND !Exists('nodejs\node.exe')">
+<Target Name="DownloadNodeJSForDevelopment" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == '' AND !Exists('$(OutputPath)nodejs\node.exe') AND !Exists('nodejs\node.exe') AND !Exists('$(OutputPath)nodejs/bin/node') AND !Exists('nodejs/bin/node')">
     <PropertyGroup>
         <!-- Default to Windows for development -->
         <DevRuntimeIdentifier Condition="'$(OS)' == 'Windows_NT'">win-x64</DevRuntimeIdentifier>
-        <DevRuntimeIdentifier Condition="'$(OS)' != 'Windows_NT'">linux-x64</DevRuntimeIdentifier>
-        
+        <!-- On non-Windows, use the SDK's own detected RID (e.g. linux-arm64) rather than assuming x64 -->
+        <DevRuntimeIdentifier Condition="'$(OS)' != 'Windows_NT' AND '$(NETCoreSdkRuntimeIdentifier)' != ''">$(NETCoreSdkRuntimeIdentifier)</DevRuntimeIdentifier>
+        <DevRuntimeIdentifier Condition="'$(DevRuntimeIdentifier)' == ''">linux-x64</DevRuntimeIdentifier>
+
         <NodeJSUrl Condition="'$(DevRuntimeIdentifier)' == 'win-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-win-x64.zip</NodeJSUrl>
         <NodeJSUrl Condition="'$(DevRuntimeIdentifier)' == 'linux-x64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSUrl>
+        <NodeJSUrl Condition="'$(DevRuntimeIdentifier)' == 'linux-arm64'">https://nodejs.org/dist/v$(NodeJSVersion)/node-v$(NodeJSVersion)-linux-arm64.tar.xz</NodeJSUrl>
 
         <NodeJSExtractPath>$(OutputPath)nodejs</NodeJSExtractPath>
         <NodeJSFileName Condition="'$(DevRuntimeIdentifier)' == 'win-x64'">node-v$(NodeJSVersion)-win-x64.zip</NodeJSFileName>
         <NodeJSFileName Condition="'$(DevRuntimeIdentifier)' == 'linux-x64'">node-v$(NodeJSVersion)-linux-x64.tar.xz</NodeJSFileName>
+        <NodeJSFileName Condition="'$(DevRuntimeIdentifier)' == 'linux-arm64'">node-v$(NodeJSVersion)-linux-arm64.tar.xz</NodeJSFileName>
         <NodeJSFilePath>$(OutputPath)$(NodeJSFileName)</NodeJSFilePath>
         <NodeJSTempExtractPath>$(OutputPath)temp_nodejs</NodeJSTempExtractPath>
     </PropertyGroup>
@@ -172,9 +174,7 @@
     <Message Text="Starting Windows extraction..." Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')" />
     
     <!-- First extract to temp directory -->
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('$(NodeJSFilePath)', '$(NodeJSTempExtractPath)'); Write-Host 'Extraction to temp completed'; } catch { Write-Error $_.Exception.Message; throw }&quot;"
-          Condition="'$(DevRuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')"
-          ContinueOnError="false" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('$(NodeJSFilePath)', '$(NodeJSTempExtractPath)'); Write-Host 'Extraction to temp completed'; } catch { Write-Error $_.Exception.Message; throw }&quot;" Condition="'$(DevRuntimeIdentifier)' == 'win-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
 
     <!-- Find the extracted folder and move contents -->
     <ItemGroup Condition="'$(DevRuntimeIdentifier)' == 'win-x64'">
@@ -182,18 +182,16 @@
     </ItemGroup>
     
     <!-- Copy files from the extracted folder to the final nodejs directory -->
-    <Copy SourceFiles="@(ExtractedNodeFolder)" 
-          DestinationFolder="$(NodeJSExtractPath)\%(RecursiveDir)" 
-          Condition="'$(DevRuntimeIdentifier)' == 'win-x64'" />
+    <Copy SourceFiles="@(ExtractedNodeFolder)" DestinationFolder="$(NodeJSExtractPath)\%(RecursiveDir)" Condition="'$(DevRuntimeIdentifier)' == 'win-x64'" />
 
-    <!-- Linux extraction -->
-    <Exec Command="which xz" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="true" IgnoreExitCode="true" />
+    <!-- Linux extraction (any linux-* RID) -->
+    <Exec Command="which xz" Condition="$(DevRuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" ContinueOnError="true" IgnoreExitCode="true" />
 
-    <Message Text="Starting Linux extraction..." Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+    <Message Text="Starting Linux extraction..." Importance="high" Condition="$(DevRuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" />
 
-    <Exec Command="tar -xJf &quot;$(NodeJSFilePath)&quot; -C &quot;$(NodeJSExtractPath)&quot; --strip-components=1" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
+    <Exec Command="tar -xJf &quot;$(NodeJSFilePath)&quot; -C &quot;$(NodeJSExtractPath)&quot; --strip-components=1" Condition="$(DevRuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" ContinueOnError="false" />
 
-    <Message Text="Linux extraction completed successfully" Importance="high" Condition="'$(DevRuntimeIdentifier)' == 'linux-x64' AND Exists('$(NodeJSFilePath)')" />
+    <Message Text="Linux extraction completed successfully" Importance="high" Condition="$(DevRuntimeIdentifier.StartsWith('linux')) AND Exists('$(NodeJSFilePath)')" />
 
     <!-- Verify extraction with safer file counting -->
     <ItemGroup>
@@ -202,7 +200,7 @@
     </ItemGroup>
 
     <PropertyGroup>
-        <ExtractedFileCount>@(ExtractedFiles->Count())</ExtractedFileCount>
+        <ExtractedFileCount>@(ExtractedFiles-&gt;Count())</ExtractedFileCount>
     </PropertyGroup>
 
     <Message Text="Extraction verification - Files found: $(ExtractedFileCount)" Importance="high" />
@@ -221,7 +219,7 @@
 </Target>
 
 	<!-- Alternative: Include existing nodejs folder if present (for development) -->
-	<Target Name="CopyNodeJSForDevelopment" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == '' AND Exists('nodejs') AND !Exists('$(OutputPath)nodejs\node.exe')">
+	<Target Name="CopyNodeJSForDevelopment" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == '' AND Exists('nodejs') AND !Exists('$(OutputPath)nodejs\node.exe') AND !Exists('$(OutputPath)nodejs/bin/node')">
 		<PropertyGroup>
 			<NodeJSSourcePath>nodejs</NodeJSSourcePath>
 			<NodeJSDestPath>$(OutputPath)nodejs</NodeJSDestPath>
@@ -239,9 +237,7 @@
 			<NodeJSFiles Include="$(NodeJSSourcePath)\**\*" />
 		</ItemGroup>
 
-		<Copy SourceFiles="@(NodeJSFiles)" 
-			  DestinationFolder="$(NodeJSDestPath)\%(RecursiveDir)" 
-			  SkipUnchangedFiles="true" />
+		<Copy SourceFiles="@(NodeJSFiles)" DestinationFolder="$(NodeJSDestPath)\%(RecursiveDir)" SkipUnchangedFiles="true" />
 
 		<Message Text="Node.js files copied successfully for development" Importance="high" />
 		<Message Text="Node.js executable available at: $(NodeJSDestPath)\node.exe" Importance="high" />
