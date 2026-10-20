@@ -40,7 +40,9 @@ namespace SpooderInstallerSharp.Models
             
             _gitOperations.CloneRepository("https://github.com/GreySole/Spooder.git", scriptPath, branch: selectedBranch);
 
-            _processManager.CheckPaths();
+            // nodePath/npmPath are resolved once via fnm at startup (or when the version changes in
+            // Settings) - re-scanning the bundled fallback folder here would clobber that with
+            // whatever (possibly stale/corrupted) copy sits next to the exe.
 
             ConsoleMessenger.AddInfoMessage("Installing dependencies with npm...");
 
@@ -206,7 +208,6 @@ namespace SpooderInstallerSharp.Models
         public async Task<bool> RunNpmInstall(string workingDirectory)
         {
             ConsoleMessenger.AddInfoMessage("Running npm install to update dependencies...");
-            _processManager.CheckPaths();
 
             var processStartInfo = new ProcessStartInfo(_processManager.npmPath, "install --verbose")
             {
@@ -262,8 +263,6 @@ namespace SpooderInstallerSharp.Models
                 ProcessStartInfo processStartInfo;
 
                 // Use npm to run the build script
-                _processManager.CheckPaths();
-
                 processStartInfo = new ProcessStartInfo(_processManager.npmPath, "run build")
                 {
                     WorkingDirectory = workingDirectory,

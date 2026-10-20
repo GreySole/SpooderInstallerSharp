@@ -22,6 +22,9 @@ namespace SpooderInstallerSharp.Models
         public event EventHandler? DefaultDirectorySetNeeded;
         public event EventHandler? SpooderThemeChanged;
         public event EventHandler<UpdateAvailableEventArgs>? UpdateAvailable;
+        public event EventHandler? NodeSetupStart;
+        public event EventHandler? NodeSetupComplete;
+        public event EventHandler? SpooderInfoRefreshed;
 
         // Add event for receiving IPC messages
         public event EventHandler<string>? MessageReceived;
@@ -32,8 +35,8 @@ namespace SpooderInstallerSharp.Models
         private readonly ProcessManager _processManager;
         private readonly InstallationManager _installationManager;
         private readonly FileOperations _fileOperations;
-        private readonly NodeJsUpdateManager _nodeJsUpdateManager;
-        
+        private readonly FnmManager _fnmManager;
+
         public SpooderInfo? spooderInfo { get; set; }
 
         public SpooderManager()
@@ -50,7 +53,7 @@ namespace SpooderInstallerSharp.Models
             _installationManager = new InstallationManager(_gitOperations, _processManager, _fileOperations,
                                                          OnSpooderInstallStart, OnSpooderInstallComplete,
                                                          OnSpooderUninstalled, OnSpooderCleaned);
-            _nodeJsUpdateManager = new NodeJsUpdateManager(_processManager);
+            _fnmManager = new FnmManager();
 
             // Perform initialization checks
             PerformInitialChecks();
@@ -58,7 +61,25 @@ namespace SpooderInstallerSharp.Models
 
         private void PerformInitialChecks()
         {
-            _processManager.CheckPaths();
+            _ = InitializeNodeAsync();
+        }
+
+        private async Task InitializeNodeAsync()
+        {
+            // Yield first: this runs from the SpooderManager constructor, and firing NodeSetupStart
+            // synchronously here would race ahead of MainViewModel subscribing to it right after
+            // `new SpooderManager()` returns - the very first startup event would be missed.
+            await Task.Yield();
+
+            var appSettings = SettingsManager.LoadSettings();
+            var nodeVersion = string.IsNullOrWhiteSpace(appSettings.SelectedNodeVersion) ? "22" : appSettings.SelectedNodeVersion;
+
+            bool nodeReady = await SetNodeVersionAsync(nodeVersion);
+            if (!nodeReady)
+            {
+                // fnm setup failed (e.g. offline on first run) - fall back to a bundled Node.js copy if one exists.
+                _processManager.CheckPaths();
+            }
 
             var nodeExists = File.Exists(_processManager.nodePath);
             var npmExists = File.Exists(_processManager.npmPath);
@@ -68,16 +89,24 @@ namespace SpooderInstallerSharp.Models
             ConsoleMessenger.AddInfoMessageIf(npmExists, "NPM found: OK");
             ConsoleMessenger.AddWarningMessageIf(!npmExists, "NPM: NOT FOUND");
 
-            if (nodeExists)
-            {
-                var appSettings = SettingsManager.LoadSettings();
-                if (appSettings.AutoCheckUpdates)
-                {
-                    _ = _nodeJsUpdateManager.CheckAndUpdateAsync();
-                }
-            }
-
             refreshSpooderInfo();
+        }
+
+        /// <summary>
+        /// Installs (if needed) and switches to the given Node.js version via fnm. Used both at
+        /// startup and whenever the user changes their selected version in Settings.
+        /// </summary>
+        public async Task<bool> SetNodeVersionAsync(string version)
+        {
+            OnNodeSetupStart();
+            try
+            {
+                return await _fnmManager.EnsureNodeVersionReadyAsync(_processManager, version);
+            }
+            finally
+            {
+                OnNodeSetupComplete();
+            }
         }
 
         /// <summary>
@@ -142,12 +171,41 @@ namespace SpooderInstallerSharp.Models
             SpooderThemeChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        protected virtual void OnNodeSetupStart()
+        {
+            NodeSetupStart?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected virtual void OnNodeSetupComplete()
+        {
+            NodeSetupComplete?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected virtual void OnSpooderInfoRefreshed()
+        {
+            SpooderInfoRefreshed?.Invoke(this, EventArgs.Empty);
+        }
+
         protected virtual void OnUpdateAvailable(string currentVersion, string newVersion, string branch)
         {
             UpdateAvailable?.Invoke(this, new UpdateAvailableEventArgs(currentVersion, newVersion, branch));
         }
 
         public void refreshSpooderInfo()
+        {
+            try
+            {
+                refreshSpooderInfoCore();
+            }
+            finally
+            {
+                // Fires on every exit path (including the early return below) so MainViewModel's
+                // IsSpooderInstalled stays in sync with spooderInfo after each async refresh.
+                OnSpooderInfoRefreshed();
+            }
+        }
+
+        private void refreshSpooderInfoCore()
         {
             var appSettings = SettingsManager.LoadSettings();
             var packageJsonPath = Path.Combine(appSettings.SpooderInstallationPath, "package.json");

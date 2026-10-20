@@ -23,10 +23,16 @@
 				<StackPanel Orientation="Vertical">
 					<TextBlock Text="Branch" FontSize="18"/>
 					<ComboBox x:Name="BranchSelect" Width="200" />
+					<Button Content="Reinstall Spooder" Command="{Binding ReinstallSpooder}" Margin="0,10,0,0"
+							ToolTip.Tip="Fetches and syncs the installation with the latest commit on the current branch. Uncommitted repo changes will be discarded; the user folder is left intact."/>
 				</StackPanel>
 				<StackPanel Orientation="Vertical">
 					<TextBlock Text="Mode" FontSize="18"/>
 					<ComboBox x:Name="ModeSelect" Width="200" />
+				</StackPanel>
+				<StackPanel Orientation="Vertical">
+					<TextBlock Text="Node.js Version" FontSize="18"/>
+					<ComboBox x:Name="NodeVersionSelect" Width="200" />
 				</StackPanel>
 				<StackPanel Orientation="Vertical">
 					<TextBlock Text="Preferences" FontSize="18"/>

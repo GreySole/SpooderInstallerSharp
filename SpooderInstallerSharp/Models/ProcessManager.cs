@@ -95,7 +95,9 @@ namespace SpooderInstallerSharp.Models
             ConsoleMessenger.AddInfoMessage("Attempting to start Spooder...");
             var appSettings = SettingsManager.LoadSettings();
             var scriptPath = appSettings.SpooderInstallationPath;
-            CheckPaths();
+            // nodePath/npmPath are resolved once via fnm at startup (or when the version changes in
+            // Settings) - re-scanning the bundled fallback folder here would clobber that with
+            // whatever (possibly stale/corrupted) copy sits next to the exe.
 
             // Read the package.json to find the start script
             string packageJsonPath = Path.Combine(scriptPath, "package.json");

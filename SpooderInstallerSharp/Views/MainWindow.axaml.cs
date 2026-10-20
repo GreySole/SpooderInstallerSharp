@@ -46,47 +46,61 @@ public partial class MainWindow : UserControl
 
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        UpdateUniformGridLayout(e.NewSize.Width);
+        UpdateHeaderLayout(e.NewSize.Width);
     }
 
-    private void UpdateUniformGridLayout(double width)
+    private void UpdateHeaderLayout(double width)
     {
-        var uniformGrid = this.FindControl<UniformGrid>("MainUniformGrid");
         var spooderNameBlock = this.FindControl<TextBlock>("SpooderName");
-        
+        var controlsGroup = this.FindControl<StackPanel>("ControlsGroup");
         var spooderPetControl = this.FindControl<StackPanel>("SpooderPet");
-        var spooderPetWidth = 350;
-        
-        var processControlsControl = this.FindControl<ProcessControls>("ProcessControls");
-        var processControlWidth = 250;
 
+        var spooderPetWidth = 350;
+        var processControlWidth = 250;
         var spooderNameWidth = 200;
 
         var totalWidth = spooderPetWidth + spooderNameWidth + processControlWidth + 50;
 
-        if (uniformGrid == null) return;
-        if(spooderNameBlock == null) return;
+        if (spooderNameBlock == null || controlsGroup == null || spooderPetControl == null) return;
 
-        if (width < totalWidth)
+        /*if (width < totalWidth)
         {
-            // Switch to rows for narrow windows
-            uniformGrid.Rows = 3;
-            uniformGrid.Columns = 0; // Setting to 0 disables column constraint
-
-            // Optionally adjust alignment for vertical layout
-            uniformGrid.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+            // Narrow window: stack name, pet, then controls, each centered on its own row
+            Grid.SetRow(spooderNameBlock, 0);
+            Grid.SetColumn(spooderNameBlock, 0);
+            Grid.SetColumnSpan(spooderNameBlock, 2);
             spooderNameBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+
+            Grid.SetRow(spooderPetControl, 1);
+            Grid.SetColumn(spooderPetControl, 0);
+            Grid.SetColumnSpan(spooderPetControl, 2);
+            Grid.SetRowSpan(spooderPetControl, 1);
+            spooderPetControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+
+            Grid.SetRow(controlsGroup, 2);
+            Grid.SetColumn(controlsGroup, 0);
+            Grid.SetColumnSpan(controlsGroup, 2);
+            controlsGroup.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
         }
         else
         {
-            // Use columns for wide windows (original layout)
-            uniformGrid.Columns = 3;
-            uniformGrid.Rows = 0; // Setting to 0 disables row constraint
-
-            // Restore original alignment
-            uniformGrid.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+            // Wide window: name above controls on the left, pet beside them on the right
+            Grid.SetRow(spooderNameBlock, 0);
+            Grid.SetColumn(spooderNameBlock, 0);
+            Grid.SetColumnSpan(spooderNameBlock, 1);
             spooderNameBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
-        }
+
+            Grid.SetRow(controlsGroup, 1);
+            Grid.SetColumn(controlsGroup, 0);
+            Grid.SetColumnSpan(controlsGroup, 1);
+            controlsGroup.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+
+            Grid.SetRow(spooderPetControl, 0);
+            Grid.SetRowSpan(spooderPetControl, 2);
+            Grid.SetColumn(spooderPetControl, 1);
+            Grid.SetColumnSpan(spooderPetControl, 1);
+            spooderPetControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+        }*/
     }
 
     protected override void OnDataContextChanged(EventArgs e)

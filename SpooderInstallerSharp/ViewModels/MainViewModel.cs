@@ -32,6 +32,7 @@ public class MainViewModel : ReactiveObject
 
     public ICommand InstallSpooder { get; }
     public ICommand UninstallSpooder { get; }
+    public ICommand ReinstallSpooder { get; }
     public ICommand StartSpooder { get; }
     public ICommand RestartSpooder { get; }
     public ICommand StopSpooder { get; }
@@ -74,6 +75,124 @@ public class MainViewModel : ReactiveObject
     public bool IsSpooderNotInstalled => !IsSpooderInstalled;
     public bool IsSpooderRunnable => !IsSpooderRunning && IsSpooderInstalled;
     public string ToggleRunMenuText => IsSpooderRunning ? "Stop" : "Start";
+
+    private bool _isLoading;
+
+    /// <summary>
+    /// Drives the spinning loading icon. Backed by a ref-count so overlapping sources
+    /// (a manager command plus an IPC-triggered loading state, say) don't clear each other out.
+    /// </summary>
+    public bool IsLoading
+    {
+        get => _isLoading;
+        private set => this.RaiseAndSetIfChanged(ref _isLoading, value);
+    }
+
+    private int _loadingRefCount;
+    private readonly object _loadingLock = new object();
+
+    private void BeginLoading()
+    {
+        bool shouldShow = false;
+        lock (_loadingLock)
+        {
+            _loadingRefCount++;
+            shouldShow = _loadingRefCount == 1;
+        }
+        if (shouldShow)
+        {
+            Dispatcher.UIThread.Post(() => IsLoading = true);
+        }
+    }
+
+    private void EndLoading()
+    {
+        bool shouldHide = false;
+        lock (_loadingLock)
+        {
+            if (_loadingRefCount > 0)
+            {
+                _loadingRefCount--;
+            }
+            shouldHide = _loadingRefCount == 0;
+        }
+        if (shouldHide)
+        {
+            Dispatcher.UIThread.Post(() => IsLoading = false);
+        }
+    }
+
+    /// <summary>
+    /// Resets the loading indicator regardless of how many sources requested it.
+    /// Called when Spooder exits so a crash mid-operation can't leave the icon spinning forever.
+    /// </summary>
+    private void ForceLoadingOff()
+    {
+        lock (_loadingLock)
+        {
+            _loadingRefCount = 0;
+        }
+        Dispatcher.UIThread.Post(() => IsLoading = false);
+    }
+
+    private bool _isSpooderBusy;
+
+    /// <summary>
+    /// Drives the dot inside the loading icon. The ring alone means the manager itself is
+    /// busy; the ring plus this dot means Spooder (the Node process) reported it's busy over IPC.
+    /// </summary>
+    public bool IsSpooderBusy
+    {
+        get => _isSpooderBusy;
+        private set => this.RaiseAndSetIfChanged(ref _isSpooderBusy, value);
+    }
+
+    private int _spooderBusyRefCount;
+    private readonly object _spooderBusyLock = new object();
+
+    private void BeginSpooderBusy()
+    {
+        bool shouldShow = false;
+        lock (_spooderBusyLock)
+        {
+            _spooderBusyRefCount++;
+            shouldShow = _spooderBusyRefCount == 1;
+        }
+        if (shouldShow)
+        {
+            Dispatcher.UIThread.Post(() => IsSpooderBusy = true);
+        }
+    }
+
+    private void EndSpooderBusy()
+    {
+        bool shouldHide = false;
+        lock (_spooderBusyLock)
+        {
+            if (_spooderBusyRefCount > 0)
+            {
+                _spooderBusyRefCount--;
+            }
+            shouldHide = _spooderBusyRefCount == 0;
+        }
+        if (shouldHide)
+        {
+            Dispatcher.UIThread.Post(() => IsSpooderBusy = false);
+        }
+    }
+
+    /// <summary>
+    /// Resets the Spooder-busy dot regardless of how many "loading_start" messages came in
+    /// without a matching "loading_stop". Called when Spooder exits so a crash can't leave it stuck on.
+    /// </summary>
+    private void ForceSpooderBusyOff()
+    {
+        lock (_spooderBusyLock)
+        {
+            _spooderBusyRefCount = 0;
+        }
+        Dispatcher.UIThread.Post(() => IsSpooderBusy = false);
+    }
 
     public ObservableCollection<string> ConsoleOutput { get; } = new ObservableCollection<string>();
 
@@ -139,6 +258,13 @@ public class MainViewModel : ReactiveObject
 
         IsSpooderInstalled = _spooder.spooderInfo != null;
 
+        // refreshSpooderInfo() runs asynchronously after Node setup completes, so spooderInfo is
+        // still null at the line above on a fresh launch. Re-check once it actually finishes.
+        _spooder.SpooderInfoRefreshed += (sender, e) =>
+        {
+            Dispatcher.UIThread.Post(() => IsSpooderInstalled = _spooder.spooderInfo != null);
+        };
+
         _spooder.SpooderRunStart += (sender, e) =>
         {
             Debug.WriteLine("SpooderRunStart event received");
@@ -149,13 +275,20 @@ public class MainViewModel : ReactiveObject
         {
             Debug.WriteLine("SpooderRunStop event received");
             Dispatcher.UIThread.Post(() => IsSpooderRunning = false);
+            // Spooder may have crashed mid-operation; don't let the loading icon spin (or the busy dot) forever.
+            ForceLoadingOff();
+            ForceSpooderBusyOff();
         };
+
+        _spooder.NodeSetupStart += (sender, e) => BeginLoading();
+        _spooder.NodeSetupComplete += (sender, e) => EndLoading();
 
         _spooder.MessageReceived += (sender, message) =>
         {
             // Handle the IPC message from the tsx app
             try
             {
+                Logger.LogInfo($"Received IPC message: {message}");
                 JObject messageJson = JObject.Parse(message);
                 Debug.WriteLine($"Received IPC message: {message} {messageJson["action"]?.ToString()}");
                 if (messageJson["action"]?.ToString() == "restart")
@@ -165,10 +298,28 @@ public class MainViewModel : ReactiveObject
                 }else if (messageJson["action"]?.ToString() == "refresh_info")
                 {
                     Dispatcher.UIThread.Post(() => _spooder.refreshSpooderInfo());
+                }else if (messageJson["action"]?.ToString() == "loading_start")
+                {
+                    // Spooder itself is busy: show the general ring plus the dot that marks it as Spooder's work.
+                    BeginLoading();
+                    BeginSpooderBusy();
+                }else if (messageJson["action"]?.ToString() == "loading_stop")
+                {
+                    EndLoading();
+                    EndSpooderBusy();
+                }else if (messageJson["action"]?.ToString() == "server_running")
+                {
+                    // Spooder's web server is actually ready; open the browser now instead of guessing with a delay.
+                    var currentSettings = SettingsManager.LoadSettings();
+                    if (currentSettings.OpenSpooderOnStartup)
+                    {
+                        Dispatcher.UIThread.Post(async () => await OpenSpooderTask());
+                    }
                 }
             }
             catch (Exception ex)
             {
+                Logger.LogError($"Error parsing IPC message: {message}", ex);
                 Debug.WriteLine($"Error parsing IPC message: {ex.Message}");
             }
         };
@@ -177,6 +328,7 @@ public class MainViewModel : ReactiveObject
 
         InstallSpooder = ReactiveCommand.CreateFromTask(InstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderNotInstalled));
         UninstallSpooder = ReactiveCommand.CreateFromTask(UninstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderInstalled));
+        ReinstallSpooder = ReactiveCommand.CreateFromTask(ReinstallSpooderTask, this.WhenAnyValue(x => x.IsSpooderInstalled));
         CleanSpooder = ReactiveCommand.CreateFromTask(CleanSpooderTask, this.WhenAnyValue(x => x.IsSpooderInstalled));
         StartSpooder = ReactiveCommand.CreateFromTask(StartSpooderTask, this.WhenAnyValue(x => x.IsSpooderNotRunning));
         RestartSpooder = ReactiveCommand.CreateFromTask(RestartSpooderTask, this.WhenAnyValue(x => x.IsSpooderRunning));
@@ -233,45 +385,113 @@ public class MainViewModel : ReactiveObject
     private async Task InstallSpooderTask()
     {
         OnReturnToConsole();
-        IsSpooderInstalled = await Task.Run(() => _spooder.InstallSpooder());
+        BeginLoading();
+        try
+        {
+            IsSpooderInstalled = await Task.Run(() => _spooder.InstallSpooder());
+        }
+        finally
+        {
+            EndLoading();
+        }
     }
 
     private async Task UninstallSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.UninstallSpooder());
-        IsSpooderInstalled = false;
+        BeginLoading();
+        try
+        {
+            await Task.Run(() => _spooder.UninstallSpooder());
+            IsSpooderInstalled = false;
+        }
+        finally
+        {
+            EndLoading();
+        }
+    }
+
+    private async Task ReinstallSpooderTask()
+    {
+        OnReturnToConsole();
+        BeginLoading();
+        try
+        {
+            // No target branch: UpdateSpooder falls back to appSettings.SelectedBranch, so this
+            // fetches and hard-resets to whatever branch is currently configured in Settings.
+            bool success = await Task.Run(() => _spooder.UpdateSpooder());
+            if (success)
+            {
+                ConsoleMessenger.AddSuccessMessage("Spooder reinstalled successfully!");
+            }
+            else
+            {
+                ConsoleMessenger.AddErrorMessage("Spooder reinstall failed.");
+            }
+        }
+        finally
+        {
+            EndLoading();
+        }
     }
 
     private async Task CleanSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.CleanSpooder());
+        BeginLoading();
+        try
+        {
+            await Task.Run(() => _spooder.CleanSpooder());
+        }
+        finally
+        {
+            EndLoading();
+        }
     }
 
     private async Task StartSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.StartSpooder());
-        var appSettings = SettingsManager.LoadSettings();
-        if (appSettings.OpenSpooderOnStartup)
+        BeginLoading();
+        try
         {
-            await Task.Delay(5000);
-            await OpenSpooderTask();
+            await Task.Run(() => _spooder.StartSpooder());
         }
+        finally
+        {
+            EndLoading();
+        }
+        // Browser auto-open (if enabled) now happens when Spooder's "server_running" IPC message arrives,
+        // instead of guessing with a fixed delay here.
     }
 
     private async Task RestartSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.StopSpooder());
-        await Task.Run(() => _spooder.StartSpooder());
+        BeginLoading();
+        try
+        {
+            await Task.Run(() => _spooder.StopSpooder());
+            await Task.Run(() => _spooder.StartSpooder());
+        }
+        finally
+        {
+            EndLoading();
+        }
     }
 
     private async Task StopSpooderTask()
     {
         OnReturnToConsole();
-        await Task.Run(() => _spooder.StopSpooder());
+        BeginLoading();
+        try
+        {
+            await Task.Run(() => _spooder.StopSpooder());
+        }
+        finally
+        {
+            EndLoading();
+        }
     }
 
     private async Task OpenSpooderTask()
