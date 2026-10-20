@@ -30,6 +30,7 @@ public partial class Settings : UserControl
         InitializeComponent();
         _ = PopulateBranchSelectAsync();
         PopulateModes();
+        PopulateNodeVersionSelect();
         LoadInstallationDirectory();
         LoadPreferences();
     }
@@ -121,6 +122,67 @@ public partial class Settings : UserControl
             Debug.WriteLine("ModeSelect ComboBox not found.");
         }
 
+    }
+
+    private void PopulateNodeVersionSelect()
+    {
+        var nodeVersionSelect = this.FindControl<ComboBox>("NodeVersionSelect");
+        var items = new List<string>(["20", "22", "24"]);
+
+        if (nodeVersionSelect == null)
+        {
+            Debug.WriteLine("NodeVersionSelect ComboBox not found.");
+            return;
+        }
+
+        var appSettings = SettingsManager.LoadSettings();
+        var selected = string.IsNullOrWhiteSpace(appSettings.SelectedNodeVersion) ? "22" : appSettings.SelectedNodeVersion;
+
+        if (!items.Contains(selected))
+        {
+            items.Insert(0, selected);
+        }
+
+        foreach (var item in items)
+        {
+            nodeVersionSelect.Items.Add(item);
+        }
+
+        nodeVersionSelect.SelectedItem = selected;
+        nodeVersionSelect.SelectionChanged += NodeVersionSelect_SelectionChanged;
+    }
+
+    private void NodeVersionSelect_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var nodeVersionSelect = sender as ComboBox;
+        if (nodeVersionSelect?.SelectedItem != null)
+        {
+            string? selectedVersion = nodeVersionSelect.SelectedItem.ToString();
+            if (!string.IsNullOrEmpty(selectedVersion))
+            {
+                _ = SaveSelectedNodeVersionAsync(selectedVersion);
+            }
+        }
+    }
+
+    private async Task SaveSelectedNodeVersionAsync(string version)
+    {
+        var appSettings = SettingsManager.LoadSettings();
+        appSettings.SelectedNodeVersion = version;
+        SettingsManager.SaveSettings(appSettings);
+
+        if (DataContext is MainViewModel mainViewModel)
+        {
+            bool success = await mainViewModel._spooder.SetNodeVersionAsync(version);
+            if (success)
+            {
+                ConsoleMessenger.AddSuccessMessageF("Switched to Node.js {0}.", version);
+            }
+            else
+            {
+                ConsoleMessenger.AddErrorMessageF("Failed to switch to Node.js {0}. See log for details.", version);
+            }
+        }
     }
 
     private async Task PopulateBranchSelectAsync()

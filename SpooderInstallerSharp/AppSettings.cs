@@ -10,6 +10,7 @@ namespace SpooderInstallerSharp.Models
         public string SpooderInstallationPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spooder");
         public string SelectedBranch { get; set; } = "";
         public string SelectedMode { get; set; } = "Normal";
+        public string SelectedNodeVersion { get; set; } = "22";
         public bool AutoCheckUpdates { get; set; } = true;
         public bool ShowUpdatePrompts { get; set; } = true;
         public int ScreenWidth { get; set; } = 800;
